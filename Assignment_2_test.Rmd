@@ -1,16 +1,25 @@
 ---
-title: "Assignment2"
+title: "Assignment2 Whanganui Property Rates"
 author: "John Lavack 20001249"
 date: "2026-08-09"
 output: html_document
 ---
 
-```{r}
+```{r attach libs,warning = FALSE, message = FALSE}
 library(tidygraph)
+library(tidyverse)
+library(readxl)
+```
+
+```{r read in data, message = FALSE}
+#data in Draft Rates by property 26.27 - statistical purposes 1 in two sheets. Data and Unit Rates
+
+Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) #first two rows are blank, Can map headers from unit_rates reference data set.
+Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
+wdc_rates <- read_csv("wdc_rates_qv.csv")
 ```
 
 ```{r}
-#test
-#data in Draft Rates by property 26.27 - statistical purposes 1 in two sheets. Data and Unit Rates
+Data
 ```
 
