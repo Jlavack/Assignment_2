@@ -14,12 +14,27 @@ library(readxl)
 ```{r read in data, message = FALSE}
 #data in Draft Rates by property 26.27 - statistical purposes 1 in two sheets. Data and Unit Rates
 
-Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) #first two rows are blank, Can map headers from unit_rates reference data set.
+Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) %>% drop_na(property_no) #first two rows are blank, Can map headers from unit_rates reference data set. Last rows are totals, but totals have no property number, so drop. 
 Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
 wdc_rates <- read_csv("wdc_rates_qv.csv")
 ```
 
 ```{r}
-Data
+wdc_rates %>% filter(suburb == 'Castlecliff')
+```
+
+```{r}
+Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
+# sum of {CBD rates, UAGC, General Rates, Water Rates, Stormwater, Firefighting capacity, Roading, Wastewater, Earthquake, Kerbside, Forestry, Roading Resilience, Trade Waste} = total
+# AND sum of {CBD, CBDA, CBD, ESC, ESF, ESR, GC1, GCS, GFA10, GFA3, GFA4, GFA5, GR1, GRA1, GRA2, GRA5, GRS, KS, MAW, MAWD, MAWR, RDA, RDAS, RDB, RDBS, RDF, RRC, RRF, RRR, SD, SDO, SDOS, SMO, SMOH, SRWV1, SRWV2, UAGC, WC, WCM, WFC, WS, WSH, WSRE, WWS, FE, TWCOD, TWFlow, TWTSS, TWWWTP} = total. 
+# first set of sums have conditional rules that look along row 2 (where unit rates names are above the columns in set 2), checks which match the column headers in the first set, then sums the columns. It is a classification hierarchy grouping process. So, column BQ is for CBD rates, the sum looks for all columns in the group `CBD Rates` then sums only those. Of which there are three: CBD, CBDA and CBDB. Same deal for all the others. 
+
+# The requirement is a 2 page flyer. Therefore, expect 2- 4 graphics. Try 2 simpler ones and 2 more complex ones.  
+# 1. Which areas have the highest rates over time? OR which areas have the highest change this time?: a map of whanganui with heat colors. 
+# Can show areas with QV average for area and rates average per area to eyeball if higher = higher or not.   
+# 2. What contributes the most to rates increases this year, using data and the unit rates to look at the contributing components of each rate element.
+#    find the max column, then reshape to get property no, value, contirbuting rate code, then the hierarchy it belongs to. And % contribution to rate increase. Can also look at the aggregate part too... could be fun. 
+# 3. Look at rates variances 
+# 4 land area changes or land usage changes and impact on rates. Perhaps I can color in the map or look at suburbs and their split of qv_categories vs rates changes over time. i.e. increase in commerical and larger increase in rates? Will play with that. 
 ```
 
