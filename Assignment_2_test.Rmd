@@ -36,5 +36,6 @@ Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
 #    find the max column, then reshape to get property no, value, contirbuting rate code, then the hierarchy it belongs to. And % contribution to rate increase. Can also look at the aggregate part too... could be fun. 
 # 3. Look at rates variances 
 # 4 land area changes or land usage changes and impact on rates. Perhaps I can color in the map or look at suburbs and their split of qv_categories vs rates changes over time. i.e. increase in commerical and larger increase in rates? Will play with that. 
+# Lead with a gimme: how rates have changed over time in whanganui. the year on year % change overall. As a lead in. 
 ```
 
