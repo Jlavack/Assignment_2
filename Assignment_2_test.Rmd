@@ -20,8 +20,17 @@ wdc_rates <- read_csv("wdc_rates_qv.csv") %>% mutate(rate_yr = factor(rate_yr, l
 ```
 
 ```{r}
-wdc_rates %>% filter(suburb == 'Castlecliff')
+wdc_rates %>% filter(property_no == 6318)
 ```
+
+```{r color palette notes}
+
+ "#6190F7"
+ "#DC0100"
+ "#69A241"
+ "#FEC30E"
+```
+
 
 ```{r}
 Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
@@ -42,14 +51,29 @@ Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
 
 ```{r graph 1}
 # rates over time, need to set a factor order for the rate_yr, OR map them to years. 
+#will now try group by property number then calculate the year on year percentage change, 
 
-wdc_rates %>%
-  mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE)) %>% 
+graph_1_data <- wdc_rates %>%
+  arrange(property_no, rate_yr) %>%
+  group_by(property_no) %>%
+  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
+         pct_change = replace_na(pct_change, 0)) %>%
+  ungroup() %>%
+  select(property_no, rate_yr, `total rates`, pct_change)
+
+graph_1_median <- graph_1_data %>% 
+  filter(property_no != 6318) %>%
   group_by(rate_yr) %>%
-  summarise(average_rate = mean(`total rates`), .groups = 'drop') %>%
-  ggplot(aes(x = rate_yr, y = average_rate, group = 1)) +
-  geom_point() +
-  geom_line()
+  summarise(median_pct = median(pct_change), .groups = 'drop')
+  
+#spaghetti plot
+#property 6318 has a 13464.58% rates change. That is odd. I will drop it. A commerical property that was increasedd from42 to 5710 in 24_25
+graph_1_data %>% filter(property_no != 6318) %>%
+ggplot(aes(x = rate_yr, y = pct_change, group = property_no)) +
+  geom_line(col = "#6190F7", alpha = 0.15, linewidth = 0.2) +
+  geom_line(data = graph_1_median, aes(x = rate_yr, y = median_pct, group = 1), col = "#DC0100", linewidth = 1) +
+  theme(legend.position = 'none')
 
+# I think this is pretty good for a start, maybe trim out more outliers so audience can see the pct change around the median. 
 ```
 
