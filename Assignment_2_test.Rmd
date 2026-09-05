@@ -16,7 +16,7 @@ library(readxl)
 
 Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) %>% drop_na(property_no) #first two rows are blank, Can map headers from unit_rates reference data set. Last rows are totals, but totals have no property number, so drop. 
 Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
-wdc_rates <- read_csv("wdc_rates_qv.csv")
+wdc_rates <- read_csv("wdc_rates_qv.csv") %>% mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE))
 ```
 
 ```{r}
@@ -37,5 +37,19 @@ Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
 # 3. Look at rates variances 
 # 4 land area changes or land usage changes and impact on rates. Perhaps I can color in the map or look at suburbs and their split of qv_categories vs rates changes over time. i.e. increase in commerical and larger increase in rates? Will play with that. 
 # Lead with a gimme: how rates have changed over time in whanganui. the year on year % change overall. As a lead in. 
+# Fan chart 
+```
+
+```{r graph 1}
+# rates over time, need to set a factor order for the rate_yr, OR map them to years. 
+
+wdc_rates %>%
+  mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE)) %>% 
+  group_by(rate_yr) %>%
+  summarise(average_rate = mean(`total rates`), .groups = 'drop') %>%
+  ggplot(aes(x = rate_yr, y = average_rate, group = 1)) +
+  geom_point() +
+  geom_line()
+
 ```
 
