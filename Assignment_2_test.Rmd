@@ -49,7 +49,7 @@ Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
 # Fan chart 
 ```
 
-```{r graph 1}
+```{r graph 1 -spaghetti pct change}
 # rates over time, need to set a factor order for the rate_yr, OR map them to years. 
 #will now try group by property number then calculate the year on year percentage change, 
 
@@ -59,21 +59,33 @@ graph_1_data <- wdc_rates %>%
   mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
          pct_change = replace_na(pct_change, 0)) %>%
   ungroup() %>%
-  select(property_no, rate_yr, `total rates`, pct_change)
+  select(property_no, rate_yr, `total rates`, pct_change) %>%
+  filter(property_no != 6318) #remove outlier
 
-graph_1_median <- graph_1_data %>% 
-  filter(property_no != 6318) %>%
+graph_1_summary <- graph_1_data %>% 
   group_by(rate_yr) %>%
-  summarise(median_pct = median(pct_change), .groups = 'drop')
+  summarise(median_pct = median(pct_change),
+            mean_pct = mean(pct_change),
+            .groups = 'drop')
   
 #spaghetti plot
 #property 6318 has a 13464.58% rates change. That is odd. I will drop it. A commerical property that was increasedd from42 to 5710 in 24_25
-graph_1_data %>% filter(property_no != 6318) %>%
+graph_1 <- graph_1_data %>% 
 ggplot(aes(x = rate_yr, y = pct_change, group = property_no)) +
   geom_line(col = "#6190F7", alpha = 0.15, linewidth = 0.2) +
-  geom_line(data = graph_1_median, aes(x = rate_yr, y = median_pct, group = 1), col = "#DC0100", linewidth = 1) +
+  geom_line(data = graph_1_summary, aes(x = rate_yr, y = median_pct, group = 1), col = "#DC0100", linewidth = 1) +
   theme(legend.position = 'none')
 
 # I think this is pretty good for a start, maybe trim out more outliers so audience can see the pct change around the median. 
+```
+
+
+
+
+
+
+
+```{r graph 2 - fan chart pct change}
+
 ```
 
