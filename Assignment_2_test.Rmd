@@ -129,3 +129,41 @@ graph_2
   
 ```
 
+```{r graph 3 map setup}
+#Taking this from lab04
+library(maps)    
+library(sf)  
+
+nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
+
+```
+
+
+```{r graph 3 map, fig.width=10, fig.height= 10}
+ta_nz <- nz %>% 
+  group_by(territorial_authority, regional_council) %>%
+  summarise(geometry = st_union(GEOMETRY), .groups = 'drop')
+
+whanganui <- nz %>% filter(territorial_authority == "Whanganui District")
+bbox <- st_bbox(whanganui)
+
+# w_bbox <- list(x = c(1751098, 1815702), x=c(5565628, 5655993))
+
+w_bbox <- list(x = c(1767500, 1779000), y=c(5574000, 5585000))
+
+nz %>% filter(territorial_authority == "Whanganui District") %>%
+  ggplot() +
+  geom_sf(mapping=aes(fill = sa3_name)) +
+  coord_sf(xlim = w_bbox$x, ylim = w_bbox$y) +
+  geom_sf_label(mapping=aes(label=sa3_name), size=3) +
+  guides(fill = 'none')
+```
+
+```{r}
+#I need to map wdc_rates to Sa3_name, then calculate the fill of the map geom as the average rate value... how can I sohw this through time... maybe a facet wrap? 
+# group by suburb, then summarise the rates by suburb, then left join rates to the map data, then plot. That's the process. 
+sort(unique(wdc_rates$suburb))
+paste("break:")
+sort(unique(whanganui$sa3_name))
+```
+
