@@ -86,6 +86,46 @@ ggplot(aes(x = rate_yr, y = pct_change, group = property_no)) +
 
 
 ```{r graph 2 - fan chart pct change}
+graph_2_data <- graph_1_data %>%
+  # filter(pct_change < 100) %>%
+  group_by(rate_yr) %>%
+  summarise(
+    median = median(pct_change),
+    mean = mean(pct_change),
+    lower25 = quantile(pct_change, 0.375),
+    upper25 = quantile(pct_change, 0.625),
+    lower50 = quantile(pct_change, 0.25),
+    upper50 = quantile(pct_change, 0.75),
+    lower90 = quantile(pct_change, 0.05),
+    upper90 = quantile(pct_change, 0.95),
+    lower100 = quantile(pct_change, 0),
+    upper100 = quantile(pct_change, 1),
+  )
 
+graph_2 <- ggplot(data = graph_2_data, aes(x = rate_yr, group = 1)) +
+  # geom_ribbon(aes(ymin = lower100, ymax = upper100), fill = "#6190F7", alpha = 0.2) +
+  geom_ribbon(aes(ymin = lower90, ymax = upper90, fill = "90%"), alpha = 0.4) +
+  geom_ribbon(aes(ymin = lower50, ymax = upper50, fill = "50%"), alpha = 0.6) +
+  geom_ribbon(aes(ymin = lower25, ymax = upper25, fill = "25%"), alpha = 0.9) +
+  geom_line(aes(y=median, color = "Median change"), linewidth = 1) +
+  theme_minimal() +
+  scale_fill_manual(
+  name = "Qunatiles",
+  values = c("90%" = "#6190F7", 
+             "50%" = "#6190F7", 
+             "25%" = "#6190F7")
+  ) + 
+  scale_color_manual(
+    name = "Estimates",
+    values = c("Median change" = "#DC0100")
+  ) +
+  theme(legend.position = "top",
+      plot.title = element_text(size = 17),
+      plot.subtitle = element_text(size = 13),
+      axis.title.y = element_text(size = 13),
+      axis.title.x = element_text(size = 13))
+
+graph_2
+  
 ```
 
