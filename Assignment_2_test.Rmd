@@ -180,7 +180,7 @@ graph_3_data <- wdc_rates %>%
   summarise(median_rates = median(`total rates`, .groups = 'drop'))
 
 #what to do about st john and otamtea? I may try mapping streets to the releavant suburb. Will split the string to get street then google search I guess. 
-wdc_rates %>% 
+streets <- wdc_rates %>% 
   filter(suburb == "St Johns/Otamatea") %>% 
   select(property_address, suburb) %>%
   mutate(
@@ -193,4 +193,13 @@ wdc_rates %>%
 ```
 
 
+```{r}
+unique(streets$street)
+```
+
+
+```{r}
+St_John_Streets <- c(Acton Pl, Addenbrooke Tce, Aiken Rd, Alexa Pl)
+Otamatea_Streets <- c()
+```
 
