@@ -188,6 +188,7 @@ streets <- wdc_rates %>%
     street = str_remove(street, "-."),
     street = str_remove(street, "^(?i:unit\\s+)?(?:[\\d/][\\d/A-Za-z]*\\s+)+"), #handles numbers and numbers like 9A,alos UNIT 6C / 59 and
   ) %>%
+  #group by to get the unique ones. Later dtop these lines to do the matching. 
   group_by(street) %>%
   summarise(count = n())
 ```
