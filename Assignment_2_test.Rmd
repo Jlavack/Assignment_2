@@ -192,6 +192,10 @@ streets <- wdc_rates %>%
   summarise(count = n())
 ```
 
+```{r}
+wdc_rates %>% filter(grepl('Virginia Lake', property_address)) %>% arrange(property_address)
+
+```
 
 ```{r}
 unique(streets$street)
@@ -199,7 +203,16 @@ unique(streets$street)
 
 
 ```{r}
-St_John_Streets <- c(Acton Pl, Addenbrooke Tce, Aiken Rd, Alexa Pl)
-Otamatea_Streets <- c()
+St_John_Streets <- c('Acton Pl', 'Aiken Rd', 'Alexa Pl', "Brassey Rd","Bristow St", "Chittick Pl","Collier Pl", "Dickson Cres", "Halswell St","Halswell Street","Hillside Tce", "Kent Rd","Linda Pl", "Ngapuhi St", "Oakland Ave","Parkes Ave", "Parsons St", "Porritt St", "Rawhiti Pl", "Smart Tce", "St Leonard St","Taranaki St","Tarata St", "Tregarth St","Tulloch St", "Virginia Rd", 'Peakes Rd', 'Victoria Park', 'Virginia Lake (Rotokawau)')
+
+Otamatea_Streets <- c('Sewerage Pump Turere', 'Babbage Pl', 'Beachcroft', "Chelsea Cl", "Cotswolds Cl", "Diana Pl", "Eaton Cres", "Edith Collier Dr", "Edmonds Dr", "Goldsbury Pl", "Gumtree Rise", "Holdsworth Dr", "Kawau Pl", "Lancewood Pl", "Lithgow Dr", "Mannington Rd", "Montgomery Rd", "Norfolk Dr", "Otamatea Reserve", "Perrett Dr", "Pickwick Rd", "Rotokawau Dr", "Sandcroft Dr", "Sandy Lane", "St Johns Hts", "Suffolk Dr", "Tasman Views", "Tirimoana Pl", "Turere Pl","Virginia Hts", "Webster Pl", "Pukeko Drive", 'Tangaroa View')
+
+Springvale_streets <-c('Addenbrooke Tce')
+
+Whanganui_Centre_Streets <- c('Pitt St', 'Peat Pl')
+
+#great north road spans both. Lower number in St Johns up to 117. Then 119 and 121 are St Johns. 118, 120 and 122 onwards are otamtea
+#middens way is a mystery. 
+
 ```
 
