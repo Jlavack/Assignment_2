@@ -9,6 +9,8 @@ output: html_document
 library(tidygraph)
 library(tidyverse)
 library(readxl)
+library(ggdist)
+
 ```
 
 ```{r read in data, message = FALSE}
@@ -169,7 +171,7 @@ paste("break:")
 sort(unique(graph_3_data$suburb))
 ```
 
-```{r}
+```{r, fig.width=10, fig.height=10}
 #getting the streets int he suburbs. To then go map to suburbs manually. 
 
 #what to do about st john and otamtea? I may try mapping streets to the releavant suburb. Will split the string to get street then google search I guess. 
@@ -226,25 +228,95 @@ graph_3_data <- wdc_rates %>%
 whanganui %>%
   left_join(graph_3_data, by = c('sa3_name' = 'suburb')) %>%
   ggplot() +
-  geom_sf(mapping=aes(fill = median_rates)) +
+  geom_sf(mapping=aes(fill = median_rates), col = 'white', alpha = 0.5) +
   coord_sf(xlim = w_bbox$x, ylim = w_bbox$y) + #need to change the rural district label to be visible
   geom_sf_label(mapping=aes(label=sa3_name), size=3)+
   annotate("label", x = 1777000, y = 5584000,
-           label = "Whanganui District Rural", size = 3, fill = 'white') #play with this to get the piosition right
+           label = "Whanganui District Rural", size = 3, fill = 'white') + #play with this to get the piosition right
+  scale_fill_gradientn(colors = c( "#69A241", "#6190F7", "#FEC30E", '#DC0100'),
+                       limits = c(min(graph_3_data$median_rates), max(graph_3_data$median_rates))) +
+  theme_minimal()
+
   # guides(fill = median_rates)
 # w_bbox <- list(x = c(1767500, 1779000), y=c(5574000, 5585000))
+
 
 ```
 
 ```{r}
-wdc_rates %>% filter(`total rates` > 25000) %>%
+wdc_rates %>% filter(`total rates` > 25000) %>% filter(`qv category` == 'Residential') %>%
   ggplot() +
   geom_density(aes(x = `total rates`))
 ```
 
 
-```{r}
+```{r, fig.height=10, fig.width=10}
 # for one graph I will show, with the density eye plot the categorical density of rates by qv category. As they vary heaps
+widths = c(0.5, 0.8, 0.95)
+
+#identify outliers by category, then also plot them on the graph., Use a simple IQR method
+
+wdc_rates %>% filter(!is.na(`qv category`) ) %>%
+  # filter(`qv category` %in% c('Residential')) %>%
+  mutate(outlier = `total rates` < quantile(`total rates`, 0.25) - 1.5 * IQR(`total rates`) |
+           `total rates` > quantile(`total rates`, 0.75) + 1.5 * IQR(`total rates`)) %>%
+  filter(!outlier) %>%
+  ggplot(aes(x = `total rates`, y = `qv category`)) +
+  # stat_interval(.width = widths, alpha=0.4) +
+  stat_halfeye(
+    mapping = aes(fill_ramp = after_stat(level)), 
+    fill_type = "segments", 
+    .width = widths, 
+    # alpha = 0.5, 
+    show.legend = FALSE,
+    col = 'darkgray'
+  ) +
+  stat_interval(.width = widths, position = position_nudge(y = -0.05)) +
+  stat_summary(geom = "point", fun = median, col = 'black', position = position_nudge(y = -0.05)) +
+  scale_fill_ramp_discrete(na.translate = FALSE) +
+  theme_minimal() +
+    scale_color_manual(values = c("#FEC30E","#6190F7", "#69A241")) 
+
+
+
+ # "#6190F7"
+ # "#DC0100"
+ # "#69A241"
+ # "#FEC30E"
+
+#copied code from assignment 1
+# # +
+#   geom_vline(xintercept = mean_value, col = 'black', lty = 'dashed') +
+#   #add an annotation over hte y axis ot indicate the number of sites
+#   annotate("text", 
+#            x = 0, # Position x near the counts (right side)
+#            y = y_levels[5], # Position y at the top-most category level
+#            label = "(Sites, Samples)", 
+#            size = 3, 
+#            hjust = 1.2, # Left align the header with the counts
+#            vjust = -3, # Push it up above the label
+#            family = "mono") +
+#   #group mean annotation
+#   annotate("text", 
+#            x = 2, # Position x near the counts (right side)
+#            y = y_levels[5], # Position y at the top-most category level
+#            label = paste0('pooled mean = ', round(mean_value, 2)), 
+#            size = 3, 
+#            hjust = -0.1, # keep it to the right of the mean line
+#            vjust = -7, # Push it up over the geom
+#            family = "mono") +
+#   scale_y_discrete(labels = label_lookup) + #applying the custom labels 
+#   #colors go outside in
+#   scale_color_manual(values = c("#f9e4c4","#79b9e7", "#4277af")) + 
+#   scale_x_continuous(breaks= seq(0, max(plot_data$`Clarity (BDISC)`), by = 1)) +
+#   coord_cartesian(xlim = c(0, 12), clip = "off") +
+#   labs(
+#     title = 'Is oversampling bias making rivers less clear?',
+#     subtitle = 'No, but increased activity around rivers does',
+#     caption = "Pasture land and urban areas have mean water clarity below the pooled mean, despite high or low sample sites \n while native forests are above it. There appears to be no trend in altitude. \n Sampled sites are all between Wellington and Palmerston in NZ",
+#     x = 'Water clarity (Meters of depth visibility)', 
+#     y = '') +
+#   theme_lawa() 
 ```
 
 
