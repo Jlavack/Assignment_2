@@ -237,7 +237,14 @@ whanganui %>%
 ```
 
 ```{r}
-whanganui
+wdc_rates %>% filter(`total rates` > 25000) %>%
+  ggplot() +
+  geom_density(aes(x = `total rates`))
+```
+
+
+```{r}
+# for one graph I will show, with the density eye plot the categorical density of rates by qv category. As they vary heaps
 ```
 
 
