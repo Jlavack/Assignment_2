@@ -348,6 +348,7 @@ Data %>%
     values_to = 'value'
   ) %>%
   filter(rate_type != 'total') %>%
+  filter(Suburb == 'Springvale') %>%
   group_by(Suburb,rate_type) %>%
   summarise(value = sum(value), .groups = 'drop') %>%
   ggplot(aes(fill = rate_type, values = value)) +
