@@ -165,19 +165,12 @@ nz %>% filter(territorial_authority == "Whanganui District") %>%
 sort(unique(wdc_rates$suburb))
 paste("break:")
 sort(unique(whanganui$sa3_name))
+paste("break:")
+sort(unique(graph_3_data$suburb))
 ```
 
 ```{r}
 #getting the streets int he suburbs. To then go map to suburbs manually. 
-graph_3_data <- wdc_rates %>%
-  mutate(
-    suburb = recode(suburb,
-    "Bastia/Durie Hills Putiki" = "Bastia-Durie Hill-Putiki",
-    "Whanganui Central" = "Whanganui Centre",
-    "Whanganui Rural" = "Whanganui District Rural",)
-  ) %>%
-  group_by(suburb) %>%
-  summarise(median_rates = median(`total rates`, .groups = 'drop'))
 
 #what to do about st john and otamtea? I may try mapping streets to the releavant suburb. Will split the string to get street then google search I guess. 
 St_John_Streets <- c('Acton Pl', 'Aiken Rd', 'Alexa Pl', "Brassey Rd","Bristow St", "Chittick Pl","Collier Pl", "Dickson Cres", "Halswell St","Halswell Street","Hillside Tce", "Kent Rd","Linda Pl", "Ngapuhi St", "Oakland Ave","Parkes Ave", "Parsons St", "Porritt St", "Rawhiti Pl", "Smart Tce", "St Leonard St","Taranaki St","Tarata St", "Tregarth St","Tulloch St", "Virginia Rd", 'Peakes Rd', 'Victoria Park', 'Virginia Lake (Rotokawau)')
@@ -193,7 +186,7 @@ Whanganui_Centre_Streets <- c('Pitt St', 'Peat Pl', 'Peat St')
 
 streets <- wdc_rates %>% 
   filter(suburb == "St Johns/Otamatea") %>% 
-  select(property_no, property_address, suburb) %>%
+  select(property_no, rate_yr, property_address, suburb) %>%
   mutate(
     house_num = as.integer(str_extract(property_address, "^\\s*(\\d+)")), 
     street = str_remove(property_address, "~.*"),
@@ -214,24 +207,38 @@ streets <- wdc_rates %>%
       street %in% Whanganui_Centre_Streets ~ "Whanganui Centre",
       TRUE ~ suburb
     )
-  )
-  #group by to get the unique ones. Later dtop these lines to do the matching. 
-  # group_by(street) %>%
-  # summarise(count = n())
+  ) %>% select(property_no, rate_yr, suburb) #for left join
+
+#move this to earlier step for data wrangling after reading in. Except the summarise bit. Just the suburb remapping
+graph_3_data <- wdc_rates %>% 
+  left_join(streets, by = c('property_no', 'rate_yr'), suffix = c("", "_new")) %>%
+  mutate(suburb = coalesce(suburb_new, suburb)) %>%
+  mutate(
+    suburb = recode(suburb,
+    "Bastia/Durie Hills Putiki" = "Bastia-Durie Hill-Putiki",
+    "Whanganui Central" = "Whanganui Centre",
+    "Whanganui Rural" = "Whanganui District Rural",)
+  ) %>%
+  select(-suburb_new) %>% 
+  group_by(suburb) %>%
+  summarise(median_rates = median(`total rates`, .groups = 'drop'))
+
+whanganui %>%
+  left_join(graph_3_data, by = c('sa3_name' = 'suburb')) %>%
+  ggplot() +
+  geom_sf(mapping=aes(fill = median_rates)) +
+  coord_sf(xlim = w_bbox$x, ylim = w_bbox$y) + #need to change the rural district label to be visible
+  geom_sf_label(mapping=aes(label=sa3_name), size=3)+
+  annotate("label", x = 1777000, y = 5584000,
+           label = "Whanganui District Rural", size = 3, fill = 'white') #play with this to get the piosition right
+  # guides(fill = median_rates)
+# w_bbox <- list(x = c(1767500, 1779000), y=c(5574000, 5585000))
+
 ```
 
 ```{r}
-wdc_rates %>% filter(grepl('Peat Pl', property_address)) %>% arrange(property_address)
-
-```
-
-```{r}
-streets %>% filter(suburb == 'St Johns/Otamatea')
+whanganui
 ```
 
 
-```{r}
-
-
-```
 
