@@ -329,7 +329,8 @@ wdc_rates %>% filter(!is.na(`qv category`) ) %>%
 # Graph 5 - rate contributor
 ```{r rates breakdown, fig.width=10, fig.height=10}
 
-
+#so waffle chart didn't work out. I will do a tree map instead.
+library(treemap)
 
 
 #the rates variance % is wrong in this data set... someone cocked up.
@@ -340,7 +341,8 @@ Data %>% select(property_no, LV:Difference ) %>%
   arrange(desc(`Rates Variance %`)) %>% 
   filter(!is.na(`Rates Variance %`)) %>% summarise(median(`Rates Variance %`))
 
-Data %>% 
+#So this looks pretty good, I will need ot map the righ suburbs to it. Could try a cock comb chart?
+graph_4_data <- Data %>% 
   select(property_no, `Res/ Comm/ Faarm`, `Land Use`, Suburb, `CBD rates`:total ) %>%
   pivot_longer(
     cols = `CBD rates`:total,
@@ -348,15 +350,19 @@ Data %>%
     values_to = 'value'
   ) %>%
   filter(rate_type != 'total') %>%
-  filter(Suburb == 'Springvale') %>%
+  # filter(Suburb == 'Springvale') %>%
   group_by(Suburb,rate_type) %>%
-  summarise(value = sum(value), .groups = 'drop') %>%
-  ggplot(aes(fill = rate_type, values = value)) +
-  geom_waffle(color = 'white', size = 0.3, n_rows = 10) +
-  # facet_wrap(~ Suburb, ncol = 3) +
-  theme_void() +
-  coord_equal()
+  summarise(value = sum(value), .groups = 'drop') 
 
+  treemap(
+    graph_4_data,
+    index = c("Suburb", "rate_type"),
+    vSize = "value",
+    vColor = 'rate_type',
+    type = "index",
+    palette = "Set2",
+    title = 'Rates by Suburb'
+  )
 ```
 
 
