@@ -103,6 +103,14 @@ Rates <- wdc_rates %>%
     "Whanganui Central" = "Whanganui Centre",
     "Whanganui Rural" = "Whanganui District Rural",)
   ) %>%
+  mutate(year = case_when(
+    rate_yr == '22_23' ~ 2022,
+    rate_yr == '23_24' ~ 2023,
+    rate_yr == '24_25' ~ 2024,
+    rate_yr == '25_26' ~ 2025,
+    rate_yr == '26_27' ~ 2026,
+    TRUE ~ NA
+  )) %>%
   select(-suburb_new) 
 
 ```
@@ -163,10 +171,10 @@ Column <- Rates %>%
         panel.grid.major.y = element_blank()) +
   scale_x_continuous(expand = expansion(mult = c(0, 0.1))) #stop the clipping off of the x axis values
 
-Rates %>%
-  filter(rate_yr == '26_27') %>% #avoid double counting
-  group_by(Category) %>%
-  summarise(Count = n(), perc = Count/nrow(Rates %>% filter(rate_yr == '26_27'))*100) 
+# Rates %>%
+#   filter(rate_yr == '26_27') %>% #avoid double counting
+#   group_by(Category) %>%
+#   summarise(Count = n(), perc = Count/nrow(Rates %>% filter(rate_yr == '26_27'))*100) 
 
 Box <- Rates %>%
   filter(rate_yr == '26_27') %>% #avoid double counting
@@ -194,12 +202,12 @@ Column | Box
 x_labels <- c('2022/23', '2023/24', '2024/25', '2025/26', '2026/27')
 
 Graph_2_data <- Rates %>% #filter(Category == 'Residential') %>%
-  arrange(property_no, rate_yr) %>%
+  arrange(property_no, year) %>%
   group_by(property_no) %>%
   mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
          pct_change = replace_na(pct_change, 0)) %>%
   ungroup() %>%
-  select(property_no, rate_yr, `total rates`, pct_change, Category)
+  select(property_no, year, `total rates`, pct_change, Category)
 
 #redline shows median change
 Graph_2_data %>%
@@ -227,9 +235,23 @@ Residential rates change the most in terms of median % change.
 
 
 #Graph 3: SUIP Residential
+do new builds have higher rates? No, it doens't appear so. 
 
 ```{r}
-Rates %>%
+year_built <- Rates %>% 
+  group_by(property_no) %>%
+  summarise(Count= n()) %>% 
+  mutate(Year_built = case_when(
+    Count == 1 ~ 2025,
+    Count == 2 ~ 2024, 
+    Count == 3 ~ 2023, 
+    Count == 4 ~ 2022,
+    TRUE ~ 2021
+  )) %>% select(-Count)
+
+Rates %>% left_join(year_built, by = 'property_no') %>%
+  group_by(Year_built) %>%
+  summarise(mr = median(`total rates`))
   
 ```
 
