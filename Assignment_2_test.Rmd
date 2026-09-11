@@ -188,7 +188,52 @@ Box <- Rates %>%
 Column | Box
 ```
 
- 
+#Graph 2: Residential rates change  through time. % change
+
+```{r graphn 2, fig.height=8, fig.width=10}
+x_labels <- c('2022/23', '2023/24', '2024/25', '2025/26', '2026/27')
+
+Graph_2_data <- Rates %>% #filter(Category == 'Residential') %>%
+  arrange(property_no, rate_yr) %>%
+  group_by(property_no) %>%
+  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
+         pct_change = replace_na(pct_change, 0)) %>%
+  ungroup() %>%
+  select(property_no, rate_yr, `total rates`, pct_change, Category)
+
+#redline shows median change
+Graph_2_data %>%
+  group_by(year, Category) %>%
+  median_qi(pct_change, .width = c(0.25, 0.5, 0.75, 0.95)) %>%
+  ggplot(aes(x = year, y = pct_change, ymin = .lower, ymax = .upper, color = Category)) +
+  geom_lineribbon(color = "#DC0100", alpha = 0.5) + #from the vignette https://mjskay.github.io/ggdist/articles/lineribbon.html
+  geom_vline(aes(xintercept = 2023), linetype ='dashed') + 
+  facet_wrap(~ Category, scales = "free_y") +
+  labs(title = 'Residential Rates Change Year on Year',
+     subtitle = 'Rate % change varied the most in the 2023/24 year,\n when the 2022 QV revaluation was applied',
+     y = 'Percentage change', 
+     x = '') +
+  scale_fill_manual(values = c("#D7E1F7", '#AFC2EC', '#8DADF2','#6190F7'),
+                    name = 'Quantile') +
+  scale_x_continuous(labels = x_labels) +
+  theme_minimal() +
+  theme(legend.position = 'top',
+        panel.grid.minor.x = element_blank(),
+        strip.text = element_text(face = "bold"))
+
+```
+
+Residential rates change the most in terms of median % change. 
+
+
+#Graph 3: SUIP Residential
+
+```{r}
+Rates %>%
+  
+```
+
+
 
 # Graph 1 and 2 - time
 
