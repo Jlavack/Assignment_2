@@ -12,7 +12,7 @@ library(readxl)
 library(ggdist)
 library(maps)    
 library(sf)  
-
+library(patchwork)
 
 ```
 
@@ -30,12 +30,8 @@ nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
 Rates <- wdc_rates %>% 
   filter(!is.na(assessment_number)) %>%
   left_join(
-  Data %>% select(property_no, SUIP, `Res/ Comm/ Faarm`), 
+  Data %>% select(property_no, SUIP), 
   by = 'property_no')
-
-```
-
-```{r re mapping suburbs}
 
 
 # Mapping Suburbs
@@ -73,7 +69,32 @@ streets <- Rates %>%
     )
   ) %>% select(property_no, rate_yr, suburb) #for left join
 
-Rates <- Rates %>%
+```
+
+```{r}
+unique(wdc_rates$`qv category`)
+```
+
+
+```{r}
+#group qv category by larger category. Commerical = commercial, industrial. Farming = dairy, pastoral, forestry, horticulture, mining. Residential = residential, lifestyle, Specialist = utlity asset, other, specialist. 
+Rates <- wdc_rates %>% 
+  filter(!is.na(assessment_number)) %>%
+  left_join(
+    Data %>% select(property_no, SUIP), 
+    by = 'property_no') %>%
+  mutate( #mapping qv_category to res/com/farm for simpler groupings
+    Category = case_when(
+      `qv category` %in% c('Commercial', 'Industrial') ~ 'Commercial', 
+      `qv category` %in% c('Farming', 'Dairy', 'Pastoral', 'Forestry', 'Horticulture', 'Mining') ~ 'Farming',
+      `qv category` %in% c('Other', 'Specialist', 'Utility asset') ~ 'Specialist',
+      `qv category` %in% c('Residential', 'Lifestyle') ~ 'Residential',
+      TRUE ~ `qv category`),
+    SUIP = case_when(
+      `qv category` == 'Mining' ~ 1,
+      `qv category` == 'Residential' & is.na(SUIP) ~ 1,
+      TRUE ~ SUIP)
+    ) %>%
   left_join(streets, by = c('property_no', 'rate_yr'), suffix = c("", "_new")) %>%
   mutate(suburb = coalesce(suburb_new, suburb)) %>%
   mutate(
@@ -83,57 +104,14 @@ Rates <- Rates %>%
     "Whanganui Rural" = "Whanganui District Rural",)
   ) %>%
   select(-suburb_new) 
-```
-
-```{r}
-Rates <- wdc_rates %>% 
-  filter(!is.na(assessment_number)) %>%
-  left_join(
-    Data %>% select(property_no, SUIP, `Res/ Comm/ Faarm`), 
-    by = 'property_no') %>%
-  mutate( #mapping qv_category to res/com/farm for simpler groupings
-    `Res/ Comm/ Faarm` = case_when(
-      property_address == '61 Dublin St~WHANGANUI' & is.na(`Res/ Comm/ Faarm`) ~ 'Commercial', #this is a dairy 
-      `qv category` == 'Mining' & is.na(`Res/ Comm/ Faarm`) ~ 'Farming', 
-      `qv category` == 'Pastoral' & is.na(`Res/ Comm/ Faarm`) ~ 'Farming',
-      `qv category` == 'Dairy' & is.na(`Res/ Comm/ Faarm`) ~ 'Farming',
-      `qv category` == 'Residential' & is.na(`Res/ Comm/ Faarm`) ~ 'Residential',
-      `qv category` == 'Lifestyle' & is.na(`Res/ Comm/ Faarm`) ~ 'Lifestyle',
-      `qv category` == 'Industrial' & is.na(`Res/ Comm/ Faarm`) ~ 'Commercial',
-      `qv category` == 'Commercial' & is.na(`Res/ Comm/ Faarm`) ~ 'Commercial',
-      `qv category` == 'Forestry' & is.na(`Res/ Comm/ Faarm`) ~ 'Exotic Forestry',
-      `qv category` == 'Other' & is.na(`Res/ Comm/ Faarm`) ~ 'Services only',
-      TRUE ~ `Res/ Comm/ Faarm`),
-    SUIP = case_when(`qv category` == 'Mining' ~ 1, 
-                     `qv category` == 'Residential' & is.na(SUIP) ~ 1,
-                     TRUE ~ SUIP),
-    Category = `Res/ Comm/ Faarm`,
-    Category = case_when(`Res/ Comm/ Faarm` == 'Residential' & SUIP >1 ~ 'Multi unit residential', TRUE ~ `Res/ Comm/ Faarm`)) %>%
-  left_join(streets, by = c('property_no', 'rate_yr'), suffix = c("", "_new")) %>%
-  mutate(suburb = coalesce(suburb_new, suburb)) %>%
-  mutate(
-    suburb = recode(suburb,
-    "Bastia/Durie Hills Putiki" = "Bastia-Durie Hill-Putiki",
-    "Whanganui Central" = "Whanganui Centre",
-    "Whanganui Rural" = "Whanganui District Rural",)
-  ) %>%
-  select(-suburb_new, -`Res/ Comm/ Faarm`, -`qv category`, -SUIP) 
 
 ```
 
-```{r}
-unique(Rates$Category)
 
-Rates
-```
 
 
 ```{r color palette notes}
-
- "#6190F7"
- "#DC0100"
- "#69A241"
- "#FEC30E"
+whanganui_palette <- c("#6190F7", "#DC0100", "#FEC30E", "#69A241", "#E2D0E6", "#D0F5FB", "#2ED8C3", "#9C7348", "#8E8972", "#687928" )
 ```
 
 
@@ -160,6 +138,56 @@ Here's the plan:
 2. Look at residential rates by SUIP. This is going to be done with a half eye chart. 
 3. Show residential rates through time split by multiple unit or single unit SUIP and compare to average annual inflation (sum up year inflation and divide by 4, get this from RBNZ) This is spaghetti chart and ribbon chart side by side. 
 4. Show suburbs rates on map. side by side with a heat map of suburb rates through the years
+
+Maybe also look at how rates varied year on year within categories.
+Rain cloud for ggdits.
+use line ribon for year on year variation
+ 
+#Graph 1: rates by category
+
+```{r graph 1, fig.width=15, fig.height=5}
+Column <- Rates %>%
+  filter(rate_yr == '26_27') %>% #avoid double counting
+  group_by(Category) %>%
+  summarise(Count = n()) %>%
+  mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
+  ggplot(aes(x=Count, y = Category, fill= Category)) +
+  geom_col() +
+  scale_fill_manual(values = whanganui_palette) +
+  labs(title = 'Rateable Units by Category',
+       subtitle = '88.4% of ratable units are residential',
+       y = '', 
+       x = 'Ratable units') +
+  theme_minimal() +
+  theme(legend.position = 'none',
+        panel.grid.major.y = element_blank()) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.1))) #stop the clipping off of the x axis values
+
+Rates %>%
+  filter(rate_yr == '26_27') %>% #avoid double counting
+  group_by(Category) %>%
+  summarise(Count = n(), perc = Count/nrow(Rates %>% filter(rate_yr == '26_27'))*100) 
+
+Box <- Rates %>%
+  filter(rate_yr == '26_27') %>% #avoid double counting
+  mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
+  ggplot(aes(x=log(`total rates`), y = Category, col= Category)) +
+  geom_point(position = position_jitterdodge(jitter.width = 1), alpha = 0.3, size = 1) +
+  geom_boxplot(col = 'black', fill = NA, outlier.shape = NA, size = 0.7) +
+  scale_color_manual(values = whanganui_palette) +
+  labs(title = 'Rates distribution by Category',
+       subtitle = 'Residential rates varied the least in year 2026 to 2027',
+       y = '', 
+       x = 'Log of total rates') +
+  theme_minimal() +
+  theme(legend.position = 'none',
+        panel.grid.major.y = element_blank(),
+        axis.text.y = element_blank())
+
+#patchwotj the two together
+Column | Box
+```
+
  
 
 # Graph 1 and 2 - time
