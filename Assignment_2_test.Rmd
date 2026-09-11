@@ -10,8 +10,9 @@ library(tidygraph)
 library(tidyverse)
 library(readxl)
 library(ggdist)
-library(waffle)
-#remotes::install_github("hrbrmstr/waffle", dependencies = FALSE) - cran sometimes silently fails.
+library(maps)    
+library(sf)  
+
 
 ```
 
@@ -21,11 +22,111 @@ library(waffle)
 Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) %>% drop_na(property_no) #first two rows are blank, Can map headers from unit_rates reference data set. Last rows are totals, but totals have no property number, so drop. 
 Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
 wdc_rates <- read_csv("wdc_rates_qv.csv") %>% mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE))
+#For the map
+nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
+
+#join tdatasets to get what I need. Remove nulls from data set.
+
+Rates <- wdc_rates %>% 
+  filter(!is.na(assessment_number)) %>%
+  left_join(
+  Data %>% select(property_no, SUIP, `Res/ Comm/ Faarm`), 
+  by = 'property_no')
+
+```
+
+```{r re mapping suburbs}
+
+
+# Mapping Suburbs
+St_John_Streets <- c('Acton Pl', 'Aiken Rd', 'Alexa Pl', "Brassey Rd","Bristow St", "Chittick Pl","Collier Pl", "Dickson Cres", "Halswell St","Halswell Street","Hillside Tce", "Kent Rd","Linda Pl", "Ngapuhi St", "Oakland Ave","Parkes Ave", "Parsons St", "Porritt St", "Rawhiti Pl", "Smart Tce", "St Leonard St","Taranaki St","Tarata St", "Tregarth St","Tulloch St", "Virginia Rd", 'Peakes Rd', 'Victoria Park', 'Virginia Lake (Rotokawau)')
+
+Otamatea_Streets <- c('Sewerage Pump Turere', 'Babbage Pl', 'Beachcroft', "Chelsea Cl", "Cotswolds Cl", "Diana Pl", "Eaton Cres", "Edith Collier Dr", "Edmonds Dr", "Goldsbury Pl", "Gumtree Rise", "Holdsworth Dr", "Kawau Pl", "Lancewood Pl", "Lithgow Dr", "Mannington Rd", "Montgomery Rd", "Norfolk Dr", "Otamatea Reserve", "Perrett Dr", "Pickwick Rd", "Rotokawau Dr", "Sandcroft Dr", "Sandy Lane", "St Johns Hts", "Suffolk Dr", "Tasman Views", "Tirimoana Pl", "Turere Pl","Virginia Hts", "Webster Pl", "Pukeko Drive", 'Tangaroa View', 'Middens Way')
+
+Springvale_streets <-c('Addenbrooke Tce')
+
+Whanganui_Centre_Streets <- c('Pitt St', 'Peat Pl', 'Peat St')
+#great north road spans both. Lower number in St Johns up to 117. Then 119 and 121 are St Johns. 118, 120 and 122 onwards are otamtea
+
+streets <- Rates %>% 
+  filter(suburb == "St Johns/Otamatea") %>% 
+  select(property_no, rate_yr, property_address, suburb) %>%
+  mutate(
+    house_num = as.integer(str_extract(property_address, "^\\s*(\\d+)")), 
+    street = str_remove(property_address, "~.*"),
+    street = str_remove(street, "-."),
+    street = str_remove(street, "^(?i:unit\\s+)?(?:[\\d/][\\d/A-Za-z]*\\s+)+"), #handles numbers and numbers like 9A,alos UNIT 6C / 59 and
+  ) %>%
+  mutate(
+    suburb = case_when(
+      #house numbers on great north road
+      street == "Great North Rd" & is.na(house_num) ~ "St Johns Hill",
+      street == "Great North Rd" & house_num <= 117 ~ "St Johns Hill",
+      street == "Great North Rd" & house_num %in% c(119, 121) ~ "St Johns Hill",
+      street == "Great North Rd" & house_num >= 118 ~ "Otamatea (Whanganui District)",
+      #easier ones
+      street %in% St_John_Streets ~ "St Johns Hill",
+      street %in% Otamatea_Streets ~ "Otamatea (Whanganui District)",
+      street %in% Springvale_streets ~ "Springvale",
+      street %in% Whanganui_Centre_Streets ~ "Whanganui Centre",
+      TRUE ~ suburb
+    )
+  ) %>% select(property_no, rate_yr, suburb) #for left join
+
+Rates <- Rates %>%
+  left_join(streets, by = c('property_no', 'rate_yr'), suffix = c("", "_new")) %>%
+  mutate(suburb = coalesce(suburb_new, suburb)) %>%
+  mutate(
+    suburb = recode(suburb,
+    "Bastia/Durie Hills Putiki" = "Bastia-Durie Hill-Putiki",
+    "Whanganui Central" = "Whanganui Centre",
+    "Whanganui Rural" = "Whanganui District Rural",)
+  ) %>%
+  select(-suburb_new) 
 ```
 
 ```{r}
-wdc_rates %>% filter(property_no == 6318)
+Rates <- wdc_rates %>% 
+  filter(!is.na(assessment_number)) %>%
+  left_join(
+    Data %>% select(property_no, SUIP, `Res/ Comm/ Faarm`), 
+    by = 'property_no') %>%
+  mutate( #mapping qv_category to res/com/farm for simpler groupings
+    `Res/ Comm/ Faarm` = case_when(
+      property_address == '61 Dublin St~WHANGANUI' & is.na(`Res/ Comm/ Faarm`) ~ 'Commercial', #this is a dairy 
+      `qv category` == 'Mining' & is.na(`Res/ Comm/ Faarm`) ~ 'Farming', 
+      `qv category` == 'Pastoral' & is.na(`Res/ Comm/ Faarm`) ~ 'Farming',
+      `qv category` == 'Dairy' & is.na(`Res/ Comm/ Faarm`) ~ 'Farming',
+      `qv category` == 'Residential' & is.na(`Res/ Comm/ Faarm`) ~ 'Residential',
+      `qv category` == 'Lifestyle' & is.na(`Res/ Comm/ Faarm`) ~ 'Lifestyle',
+      `qv category` == 'Industrial' & is.na(`Res/ Comm/ Faarm`) ~ 'Commercial',
+      `qv category` == 'Commercial' & is.na(`Res/ Comm/ Faarm`) ~ 'Commercial',
+      `qv category` == 'Forestry' & is.na(`Res/ Comm/ Faarm`) ~ 'Exotic Forestry',
+      `qv category` == 'Other' & is.na(`Res/ Comm/ Faarm`) ~ 'Services only',
+      TRUE ~ `Res/ Comm/ Faarm`),
+    SUIP = case_when(`qv category` == 'Mining' ~ 1, 
+                     `qv category` == 'Residential' & is.na(SUIP) ~ 1,
+                     TRUE ~ SUIP),
+    Category = `Res/ Comm/ Faarm`,
+    Category = case_when(`Res/ Comm/ Faarm` == 'Residential' & SUIP >1 ~ 'Multi unit residential', TRUE ~ `Res/ Comm/ Faarm`)) %>%
+  left_join(streets, by = c('property_no', 'rate_yr'), suffix = c("", "_new")) %>%
+  mutate(suburb = coalesce(suburb_new, suburb)) %>%
+  mutate(
+    suburb = recode(suburb,
+    "Bastia/Durie Hills Putiki" = "Bastia-Durie Hill-Putiki",
+    "Whanganui Central" = "Whanganui Centre",
+    "Whanganui Rural" = "Whanganui District Rural",)
+  ) %>%
+  select(-suburb_new, -`Res/ Comm/ Faarm`, -`qv category`, -SUIP) 
+
 ```
+
+```{r}
+unique(Rates$Category)
+
+Rates
+```
+
 
 ```{r color palette notes}
 
@@ -52,6 +153,15 @@ Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
 # Lead with a gimme: how rates have changed over time in whanganui. the year on year % change overall. As a lead in. 
 # Fan chart 
 ```
+
+
+Here's the plan:
+1. look at rates by category then highlight that residential rates are what most people think of when they think rates. Show bar chart with nubmer of members by category and variance of rates by category. Bar chart with box chart, or the box like chart that shows all the points. 
+2. Look at residential rates by SUIP. This is going to be done with a half eye chart. 
+3. Show residential rates through time split by multiple unit or single unit SUIP and compare to average annual inflation (sum up year inflation and divide by 4, get this from RBNZ) This is spaghetti chart and ribbon chart side by side. 
+4. Show suburbs rates on map. side by side with a heat map of suburb rates through the years
+ 
+
 # Graph 1 and 2 - time
 
 ```{r graph 1 -spaghetti pct change}
@@ -139,14 +249,6 @@ graph_2
   
 ```
 
-```{r graph 3 map setup}
-#Taking this from lab04
-library(maps)    
-library(sf)  
-
-nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
-
-```
 
 # Graph 3 - Map
 
@@ -175,56 +277,9 @@ sort(unique(graph_3_data$suburb))
 ```
 
 ```{r, fig.width=10, fig.height=10}
-#getting the streets int he suburbs. To then go map to suburbs manually. 
-
-#what to do about st john and otamtea? I may try mapping streets to the releavant suburb. Will split the string to get street then google search I guess. 
-St_John_Streets <- c('Acton Pl', 'Aiken Rd', 'Alexa Pl', "Brassey Rd","Bristow St", "Chittick Pl","Collier Pl", "Dickson Cres", "Halswell St","Halswell Street","Hillside Tce", "Kent Rd","Linda Pl", "Ngapuhi St", "Oakland Ave","Parkes Ave", "Parsons St", "Porritt St", "Rawhiti Pl", "Smart Tce", "St Leonard St","Taranaki St","Tarata St", "Tregarth St","Tulloch St", "Virginia Rd", 'Peakes Rd', 'Victoria Park', 'Virginia Lake (Rotokawau)')
-
-Otamatea_Streets <- c('Sewerage Pump Turere', 'Babbage Pl', 'Beachcroft', "Chelsea Cl", "Cotswolds Cl", "Diana Pl", "Eaton Cres", "Edith Collier Dr", "Edmonds Dr", "Goldsbury Pl", "Gumtree Rise", "Holdsworth Dr", "Kawau Pl", "Lancewood Pl", "Lithgow Dr", "Mannington Rd", "Montgomery Rd", "Norfolk Dr", "Otamatea Reserve", "Perrett Dr", "Pickwick Rd", "Rotokawau Dr", "Sandcroft Dr", "Sandy Lane", "St Johns Hts", "Suffolk Dr", "Tasman Views", "Tirimoana Pl", "Turere Pl","Virginia Hts", "Webster Pl", "Pukeko Drive", 'Tangaroa View', 'Middens Way')
-
-Springvale_streets <-c('Addenbrooke Tce')
-
-Whanganui_Centre_Streets <- c('Pitt St', 'Peat Pl', 'Peat St')
-#great north road spans both. Lower number in St Johns up to 117. Then 119 and 121 are St Johns. 118, 120 and 122 onwards are otamtea
-
-
-
-streets <- wdc_rates %>% 
-  filter(suburb == "St Johns/Otamatea") %>% 
-  select(property_no, rate_yr, property_address, suburb) %>%
-  mutate(
-    house_num = as.integer(str_extract(property_address, "^\\s*(\\d+)")), 
-    street = str_remove(property_address, "~.*"),
-    street = str_remove(street, "-."),
-    street = str_remove(street, "^(?i:unit\\s+)?(?:[\\d/][\\d/A-Za-z]*\\s+)+"), #handles numbers and numbers like 9A,alos UNIT 6C / 59 and
-  ) %>%
-  mutate(
-    suburb = case_when(
-      #house numbers on great north road
-      street == "Great North Rd" & is.na(house_num) ~ "St Johns Hill",
-      street == "Great North Rd" & house_num <= 117 ~ "St Johns Hill",
-      street == "Great North Rd" & house_num %in% c(119, 121) ~ "St Johns Hill",
-      street == "Great North Rd" & house_num >= 118 ~ "Otamatea (Whanganui District)",
-      #easier ones
-      street %in% St_John_Streets ~ "St Johns Hill",
-      street %in% Otamatea_Streets ~ "Otamatea (Whanganui District)",
-      street %in% Springvale_streets ~ "Springvale",
-      street %in% Whanganui_Centre_Streets ~ "Whanganui Centre",
-      TRUE ~ suburb
-    )
-  ) %>% select(property_no, rate_yr, suburb) #for left join
 
 #move this to earlier step for data wrangling after reading in. Except the summarise bit. Just the suburb remapping
 graph_3_data <- wdc_rates %>% 
-  left_join(streets, by = c('property_no', 'rate_yr'), suffix = c("", "_new")) %>%
-  mutate(suburb = coalesce(suburb_new, suburb)) %>%
-  mutate(
-    suburb = recode(suburb,
-    "Bastia/Durie Hills Putiki" = "Bastia-Durie Hill-Putiki",
-    "Whanganui Central" = "Whanganui Centre",
-    "Whanganui Rural" = "Whanganui District Rural",)
-  ) %>%
-  select(-suburb_new) %>% 
   group_by(suburb) %>%
   summarise(median_rates = median(`total rates`, .groups = 'drop'))
 
@@ -365,4 +420,21 @@ graph_4_data <- Data %>%
   )
 ```
 
+```{r}
+#style over substance
+df <- Data %>%
+  select(Suburb, `CBD rates`:`Trade Waste`) %>%
+  pivot_longer(cols = `CBD rates`:`Trade Waste`,
+               names_to = "rate_type",
+               values_to = "value") %>%
+  filter(!is.na(value)) %>%
+  summarise(value = sum(value), .by = c(Suburb, rate_type))
+
+ggplot(df, aes(x = Suburb, y = sqrt(value), fill = rate_type)) +
+  geom_col(width = 1, colour = "black") +
+  # facet_wrap(~ Suburb, ncol = 3) +
+  coord_polar() +
+  theme_void() +
+  labs(x = NULL, y = NULL)
+```
 
