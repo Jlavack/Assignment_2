@@ -425,25 +425,8 @@ suburb_heatmap <- heatmap_data %>%
                   subtitle = 'Otamatea has the highest residential rates in Whanganui, despite having the fewest rateable units')
 ```
 
-```{r}
-Rates %>% 
-  filter(Category == 'Residential') %>%
-  select(`total rates`, suburb, year) %>%
-  group_by(year, suburb) %>%
-  summarise(count = n(), 
-             .groups = 'drop')
-```
 
-
-
-
-```{r}
-wdc_rates %>% filter(`total rates` > 25000) %>% filter(`qv category` == 'Residential') %>%
-  ggplot() +
-  geom_density(aes(x = `total rates`))
-```
-
-#Graph 4 - qv category
+#Graph 4 - rain clouds by SUIP
 
 ```{r, fig.height=10, fig.width=10}
 # for one graph I will show, with the density eye plot the categorical density of rates by qv category. As they vary heaps
@@ -452,33 +435,38 @@ widths = c(0.5, 0.8, 0.95)
 
 #identify outliers by category, then also plot them on the graph., Use a simple IQR method
 
-wdc_rates %>% filter(!is.na(`qv category`) ) %>%
-  # filter(`qv category` %in% c('Residential')) %>%
+Rates %>% filter(Category == 'Residential', SUIP <= 5 ) %>%
   mutate(outlier = `total rates` < quantile(`total rates`, 0.25) - 1.5 * IQR(`total rates`) |
            `total rates` > quantile(`total rates`, 0.75) + 1.5 * IQR(`total rates`)) %>%
   filter(!outlier) %>%
-  ggplot(aes(x = `total rates`, y = `qv category`)) +
-  # stat_interval(.width = widths, alpha=0.4) +
+  ggplot(aes(x = `total rates`, y = SUIP, fill = SUIP)) +
+  # stat_interval(
+  #   mapping = aes(fill_ramp = after_stat(level)),
+  #   .width = widths) +
   stat_halfeye(
-    mapping = aes(fill_ramp = after_stat(level)), 
-    fill_type = "segments", 
-    .width = widths, 
-    # alpha = 0.5, 
+    mapping = aes(fill_ramp = after_stat(level)),
+    fill_type = "segments",
+    .width = widths,
+    alpha = 0.5,
     show.legend = FALSE,
-    col = 'darkgray'
+    col = 'darkgray',
+    # interval_size_range = c(0.5, 2.5)
   ) +
-  stat_interval(.width = widths, position = position_nudge(y = -0.05)) +
-  stat_summary(geom = "point", fun = median, col = 'black', position = position_nudge(y = -0.05)) +
+  # stat_interval(.width = widths, position = position_nudge(y = -0.05)) +
+  stat_dotsinterval(
+    mapping = aes(fill_ramp = after_stat(level)),
+    .width = widths,
+    side = "bottom", 
+    layout = 'weave', 
+    scale = 0.5, 
+    slab_linewidth = NA, 
+    show.legend = FALSE, 
+    quantiles = 50) +
+
+  # stat_summary(geom = "point", fun = median, col = 'black', position = position_nudge(y = -0.05)) +
   scale_fill_ramp_discrete(na.translate = FALSE) +
-  theme_minimal() +
-    scale_color_manual(values = c("#FEC30E","#6190F7", "#69A241")) 
-
-
-
- # "#6190F7"
- # "#DC0100"
- # "#69A241"
- # "#FEC30E"
+  theme_minimal() 
+  # scale_color_manual(values = c("#FEC30E","#6190F7", "#69A241"), aesthetics = 'slab_fill')
 
 #copied code from assignment 1
 # # +
