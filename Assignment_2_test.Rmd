@@ -166,7 +166,7 @@ Rain cloud for ggdits.
 use line ribon for year on year variation
 
 # Graph 0: rates over time vs RBNZ inflation
-```{r graph 0}
+```{r graph 0, fig.width = 10, fig.height=5}
 #RBNZ data I just copied from their website. Didn't seem like worth all the effort to download the full dataset.Rate yaers frun from start july to end June (source: my ever increasing rates bill :( )
 #NZ financial year is from start march to end april, so I need to get the NZ rates year quarter inflation values to map the rates to inflation correctly
 
@@ -214,20 +214,23 @@ timeseries_data %>%
   summarise(mean_pct_change = mean(pct_change), .groups = 'drop') %>%
   ggplot(aes(y = mean_pct_change, x = year, col = Category)) +
   geom_line() +
-  geom_point(size = 2) +
-  geom_line(data = RBNZ_inflation, aes(y = CPI, x = year), color = "#ed1166", linewidth = 1, linetype= 'dashed') +
-  geom_point(data = RBNZ_inflation, aes(y = CPI, x = year), color = "#ed1166", size = 2) +
+  geom_point(size = 2,show.legend = FALSE) +
+  geom_line(data = RBNZ_inflation, aes(y = CPI, x = year, color = "RBNZ Inflation Rate"), linewidth = 1, linetype= 'dashed') +
+  geom_point(data = RBNZ_inflation, aes(y = CPI, x = year, color = "RBNZ Inflation Rate"), size = 2, show.legend = FALSE) +
   scale_x_continuous(labels = x_labels) +
-  scale_color_manual(values = whanganui_palette) +
-  labs(title = '',
-       subtitle = '',
+  scale_y_continuous(breaks = seq(0,20, by =2)) +
+  scale_color_manual(values = c(
+    setNames(whanganui_palette[1:4], c('Specialist', 'Farming', 'Commercial', 'Residential')),
+    "RBNZ Inflation Rate" = "#ed1166")) +
+  labs(title = 'Whanganui year on year rate percentage change against RBNZ CPI',
+       subtitle = 'Rates changes are usually higher than CPI, except for farming rates in 2025/26',
        x = '',
-       y ='') +
+       y ='%',
+       color = 'Legend',
+       caption = 'RBNZ rates have been averaged across the rating year, not the financial year, to align with rate changes.' ) +
   theme_minimal() +
-  theme()
+  theme(legend.position = 'top')
 
-  
-  
 ```
 
 
@@ -276,26 +279,61 @@ Column | Box
 #Graph 2: Residential rates change  through time. % change
 
 ```{r graphn 2, fig.height=8, fig.width=10}
+#===== ribbon chart =====
 #redline shows median change
-timeseries_data %>%
+ribbon_chart <- timeseries_data %>%
   group_by(year, Category) %>%
   median_qi(pct_change, .width = c(0.25, 0.5, 0.75, 0.95)) %>%
   ggplot(aes(x = year, y = pct_change, ymin = .lower, ymax = .upper, color = Category)) +
-  geom_lineribbon(color = "#DC0100", alpha = 0.5) + #from the vignette https://mjskay.github.io/ggdist/articles/lineribbon.html
+  geom_lineribbon(color = "#DC0100", alpha = 0.5, linewidth = 0.7) + #from the vignette https://mjskay.github.io/ggdist/articles/lineribbon.html
   geom_vline(aes(xintercept = 2023), linetype ='dashed') + 
   facet_wrap(~ Category, scales = "free_y") +
-  labs(title = 'Residential Rates Change Year on Year',
-     subtitle = 'Rate % change varied the most in the 2023/24 year,\n when the 2022 QV revaluation was applied',
-     y = 'Percentage change', 
-     x = '') +
   scale_fill_manual(values = c("#C7E9F3", "#92B8D8", "#5C88BD","#2757A2"),
                     name = 'Quantile') +
   scale_x_continuous(labels = x_labels) +
+  labs(title = 'Residential Rates Change Year on Year',
+     subtitle = 'Rate % change varied the most in the 2023/24 year, when the 2022 QV revaluation was applied/n but residential rates have increased the most noticably in 2024/25',
+     y = 'Percentage change', 
+     x = '') +
   theme_minimal() +
   theme(legend.position = 'top',
         panel.grid.minor.x = element_blank(),
         strip.text = element_text(face = "bold"))
 
+#===== Cumulative percent change =====
+cumulative_data <- timeseries_data %>%
+  group_by(year, Category) %>%
+  summarise(pct_change = mean(pct_change), .groups = 'drop') %>%
+  group_by(Category) %>%
+  arrange(year) %>% #should be arranged already... paranoid
+  mutate(cum_chg = cumsum(pct_change))
+
+avg_cum_perc <- cumulative_data %>% group_by(year) %>% summarise(avg = mean(cum_chg))
+
+cumulative_chart <- cumulative_data %>%
+  ggplot(aes(x = year, col = Category)) +
+  geom_line(aes(y = cum_chg), linewidth = 0.8) +
+  geom_line(data = avg_cum_perc, aes(x = year, y = avg, col = 'Average'),
+            linewidth = 1, linetype = 'dashed') +
+  scale_x_continuous(labels = x_labels) +
+  scale_y_continuous(breaks = seq(0,40, by = 5)) + 
+  scale_color_manual(values = c(
+      setNames(whanganui_palette[1:4], c('Specialist', 'Farming', 'Commercial', 'Residential')),
+      "Average" = "black")) +
+  labs(
+    title = 'Cumulatively, residential rates have changed the least',
+    subtitle = "Consistently below the average",
+    x = '',
+    y = 'Percent'
+  ) +
+  theme_minimal() +
+  theme(legend.position = 'top',
+      strip.text = element_text(face = "bold"))
+
+#patchwork output together
+(ribbon_chart / cumulative_chart)
+  
+  
 ```
 
 Residential rates change the most in terms of median % change. 
