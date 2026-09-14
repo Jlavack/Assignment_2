@@ -368,16 +368,19 @@ Rates %>% left_join(year_built, by = 'property_no') %>%
 ```{r graph 4 map, fig.width=15, fig.height=8}
 #===== map code =====
 graph_3_data <- Rates %>% 
-  filter(year == 2026) %>%
+  filter(year == 2026, Category == 'Residential') %>%
   group_by(suburb) %>%
-  summarise(median_rates = median(`total rates`, .groups = 'drop'))
+  summarise(median_rates = median(`total rates`),
+            count = n(), 
+            .groups = 'drop')
 
 suburb_map <- whanganui %>%
   left_join(graph_3_data, by = c('sa3_name' = 'suburb')) %>%
   ggplot() +
   geom_sf(mapping=aes(fill = median_rates), col = 'white', linewidth = 1, alpha = 0.5) +
   coord_sf(xlim = w_bbox$x, ylim = w_bbox$y) + #need to change the rural district label to be visible
-  geom_sf_label(mapping=aes(label=sa3_name), size=3)+
+  geom_sf_label(mapping=aes(label=sa3_name), size=3) +
+  geom_sf_text(mapping = aes(label = as.character(count)), size = 2.5, vjust = 4) + #count of ratable units
   annotate("label", x = 1777000, y = 5584000,
            label = "Whanganui District Rural", size = 3, fill = 'white') + #play with this to get the piosition right
   scale_fill_gradientn(colors = c("#008242", "#FEC30E", "#AD1619"),
@@ -419,7 +422,7 @@ suburb_heatmap <- heatmap_data %>%
 #patchwork the plot together.
 (suburb_map | suburb_heatmap) +
   plot_annotation(title = 'Median residential rates can vary more than $1,000 by suburb',
-                  subtitle = 'Otamatea has the highest residential rates in Whanganui')
+                  subtitle = 'Otamatea has the highest residential rates in Whanganui, despite having the fewest rateable units')
 ```
 
 ```{r}
