@@ -23,7 +23,8 @@ library(patchwork)
 Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) %>%
   drop_na(property_no) #first two rows are blank, Can map headers from unit_rates reference data set. Last rows are totals, but totals have no property number, so drop. 
 # Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
-wdc_rates <- read_csv("wdc_rates_qv.csv") %>% mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE))
+wdc_rates <- read_csv("wdc_rates_qv.csv") %>% 
+  mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE))
 
 #===== map setup begin ======
 nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
@@ -49,8 +50,8 @@ Whanganui_Centre_Streets <- c('Pitt St', 'Peat Pl', 'Peat St')
 
 #===== Mapping suburbs finish =====
 
-#===== Data wrangling being =====
-streets <- Rates %>% 
+#===== Data wrangling begin =====
+streets <- wdc_rates %>% 
   filter(suburb == "St Johns/Otamatea") %>% 
   select(property_no, rate_yr, property_address, suburb) %>%
   mutate(
@@ -380,7 +381,7 @@ suburb_map <- whanganui %>%
   geom_sf(mapping=aes(fill = median_rates), col = 'white', linewidth = 1, alpha = 0.5) +
   coord_sf(xlim = w_bbox$x, ylim = w_bbox$y) + #need to change the rural district label to be visible
   geom_sf_label(mapping=aes(label=sa3_name), size=3) +
-  geom_sf_text(mapping = aes(label = as.character(count)), size = 2.5, vjust = 4) + #count of ratable units
+  geom_sf_text(mapping = aes(label = as.character(count)), size = 2.5, vjust = 3) + #count of ratable units
   annotate("label", x = 1777000, y = 5584000,
            label = "Whanganui District Rural", size = 3, fill = 'white') + #play with this to get the piosition right
   scale_fill_gradientn(colors = c("#008242", "#FEC30E", "#AD1619"),
@@ -428,6 +429,11 @@ suburb_heatmap <- heatmap_data %>%
 
 #Graph 4 - rain clouds by SUIP
 
+Are the rich contributing? Look at total rates paid by residential suburb
+Maybe look at the stat half eye by subrub actual rates?
+what about the SUIPs.
+
+
 ```{r, fig.height=10, fig.width=10}
 # for one graph I will show, with the density eye plot the categorical density of rates by qv category. As they vary heaps
 # lots of categories, maybe too many. I'll try mapping them ot the Data res/com/faarm ones ot get a clearer graph
@@ -435,11 +441,21 @@ widths = c(0.5, 0.8, 0.95)
 
 #identify outliers by category, then also plot them on the graph., Use a simple IQR method
 
-Rates %>% filter(Category == 'Residential', SUIP <= 5 ) %>%
-  mutate(outlier = `total rates` < quantile(`total rates`, 0.25) - 1.5 * IQR(`total rates`) |
-           `total rates` > quantile(`total rates`, 0.75) + 1.5 * IQR(`total rates`)) %>%
-  filter(!outlier) %>%
-  ggplot(aes(x = `total rates`, y = SUIP, fill = SUIP)) +
+Rates %>% 
+  filter(Category == 'Residential', !is.na(SUIP)) %>%
+  mutate(SUIP_grp = case_when(
+    SUIP == 0 ~ '0',
+    SUIP == 1 ~ '1',
+    SUIP == 2 ~ '2', 
+    SUIP %in% c(3,4,5) ~ '3 - 5',
+    SUIP %in% c(6,7,8,9,10) ~ '6 - 10',
+    SUIP >10 ~ '11+'
+    ),
+    SUIP_grp = factor(SUIP_grp, levels = c('0', '1', '2', '3 - 5', '6 - 10', '11+'))) %>%
+  # mutate(outlier = `total rates` < quantile(`total rates`, 0.25) - 1.5 * IQR(`total rates`) |
+  #          `total rates` > quantile(`total rates`, 0.75) + 1.5 * IQR(`total rates`)) %>%
+  # filter(!outlier) %>%
+  ggplot(aes(x = `total rates`, y = SUIP_grp, fill = SUIP_grp)) +
   # stat_interval(
   #   mapping = aes(fill_ramp = after_stat(level)),
   #   .width = widths) +
@@ -449,19 +465,17 @@ Rates %>% filter(Category == 'Residential', SUIP <= 5 ) %>%
     .width = widths,
     alpha = 0.5,
     show.legend = FALSE,
-    col = 'darkgray',
-    # interval_size_range = c(0.5, 2.5)
+    col = 'black',
   ) +
-  # stat_interval(.width = widths, position = position_nudge(y = -0.05)) +
   stat_dotsinterval(
     mapping = aes(fill_ramp = after_stat(level)),
     .width = widths,
-    side = "bottom", 
-    layout = 'weave', 
-    scale = 0.5, 
-    slab_linewidth = NA, 
-    show.legend = FALSE, 
-    quantiles = 50) +
+    side = "bottom",
+    layout = 'weave',
+    scale = 0.5,
+    slab_linewidth = NA,
+    show.legend = FALSE,
+    quantiles = 100) +
 
   # stat_summary(geom = "point", fun = median, col = 'black', position = position_nudge(y = -0.05)) +
   scale_fill_ramp_discrete(na.translate = FALSE) +
@@ -501,6 +515,21 @@ Rates %>% filter(Category == 'Residential', SUIP <= 5 ) %>%
 #     x = 'Water clarity (Meters of depth visibility)', 
 #     y = '') +
 #   theme_lawa() 
+```
+```{r}
+Rates %>%  
+  mutate(SUIP_grp = case_when(
+    is.na(SUIP) ~ 'Unknown',
+    SUIP == 0 ~ '0',
+    SUIP == 1 ~ '1',
+    SUIP == 2 ~ '2', 
+    SUIP %in% c(3,4,5) ~ '3 - 5',
+    SUIP %in% c(6,7,8,9,10) ~ '6 - 10',
+    SUIP >10 ~ '11+',
+    TRUE ~ as.character(SUIP)
+  )) %>%
+  group_by(SUIP_grp) %>%
+  summarise(count = n())
 ```
 
 =============================================================================
