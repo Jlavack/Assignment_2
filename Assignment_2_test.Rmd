@@ -19,22 +19,26 @@ library(patchwork)
 ```{r read in data, message = FALSE}
 #data in Draft Rates by property 26.27 - statistical purposes 1 in two sheets. Data and Unit Rates
 
-Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) %>% drop_na(property_no) #first two rows are blank, Can map headers from unit_rates reference data set. Last rows are totals, but totals have no property number, so drop. 
-Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
+#===== Read in data ======
+Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Data", skip = 2) %>%
+  drop_na(property_no) #first two rows are blank, Can map headers from unit_rates reference data set. Last rows are totals, but totals have no property number, so drop. 
+# Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
 wdc_rates <- read_csv("wdc_rates_qv.csv") %>% mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE))
-#For the map
+
+#===== map setup begin ======
 nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
 
-#join tdatasets to get what I need. Remove nulls from data set.
+ta_nz <- nz %>% 
+  group_by(territorial_authority, regional_council) %>%
+  summarise(geometry = st_union(GEOMETRY), .groups = 'drop')
 
-Rates <- wdc_rates %>% 
-  filter(!is.na(assessment_number)) %>%
-  left_join(
-  Data %>% select(property_no, SUIP), 
-  by = 'property_no')
+whanganui <- nz %>% filter(territorial_authority == "Whanganui District")
+bbox <- st_bbox(whanganui)
 
+w_bbox <- list(x = c(1767500, 1779000), y=c(5574000, 5585000))
+#===== map setup finish ======
 
-# Mapping Suburbs
+#===== Mapping Suburbs begin =====
 St_John_Streets <- c('Acton Pl', 'Aiken Rd', 'Alexa Pl', "Brassey Rd","Bristow St", "Chittick Pl","Collier Pl", "Dickson Cres", "Halswell St","Halswell Street","Hillside Tce", "Kent Rd","Linda Pl", "Ngapuhi St", "Oakland Ave","Parkes Ave", "Parsons St", "Porritt St", "Rawhiti Pl", "Smart Tce", "St Leonard St","Taranaki St","Tarata St", "Tregarth St","Tulloch St", "Virginia Rd", 'Peakes Rd', 'Victoria Park', 'Virginia Lake (Rotokawau)')
 
 Otamatea_Streets <- c('Sewerage Pump Turere', 'Babbage Pl', 'Beachcroft', "Chelsea Cl", "Cotswolds Cl", "Diana Pl", "Eaton Cres", "Edith Collier Dr", "Edmonds Dr", "Goldsbury Pl", "Gumtree Rise", "Holdsworth Dr", "Kawau Pl", "Lancewood Pl", "Lithgow Dr", "Mannington Rd", "Montgomery Rd", "Norfolk Dr", "Otamatea Reserve", "Perrett Dr", "Pickwick Rd", "Rotokawau Dr", "Sandcroft Dr", "Sandy Lane", "St Johns Hts", "Suffolk Dr", "Tasman Views", "Tirimoana Pl", "Turere Pl","Virginia Hts", "Webster Pl", "Pukeko Drive", 'Tangaroa View', 'Middens Way')
@@ -42,8 +46,10 @@ Otamatea_Streets <- c('Sewerage Pump Turere', 'Babbage Pl', 'Beachcroft', "Chels
 Springvale_streets <-c('Addenbrooke Tce')
 
 Whanganui_Centre_Streets <- c('Pitt St', 'Peat Pl', 'Peat St')
-#great north road spans both. Lower number in St Johns up to 117. Then 119 and 121 are St Johns. 118, 120 and 122 onwards are otamtea
 
+#===== Mapping suburbs finish =====
+
+#===== Data wrangling being =====
 streets <- Rates %>% 
   filter(suburb == "St Johns/Otamatea") %>% 
   select(property_no, rate_yr, property_address, suburb) %>%
@@ -55,7 +61,7 @@ streets <- Rates %>%
   ) %>%
   mutate(
     suburb = case_when(
-      #house numbers on great north road
+      #house numbers on great north road. great north road spans both. Lower number in St Johns up to 117. Then 119 and 121 are St Johns. 118, 120 and 122 onwards are otamtea
       street == "Great North Rd" & is.na(house_num) ~ "St Johns Hill",
       street == "Great North Rd" & house_num <= 117 ~ "St Johns Hill",
       street == "Great North Rd" & house_num %in% c(119, 121) ~ "St Johns Hill",
@@ -69,15 +75,7 @@ streets <- Rates %>%
     )
   ) %>% select(property_no, rate_yr, suburb) #for left join
 
-```
-
-```{r}
-unique(wdc_rates$`qv category`)
-```
-
-
-```{r}
-#group qv category by larger category. Commerical = commercial, industrial. Farming = dairy, pastoral, forestry, horticulture, mining. Residential = residential, lifestyle, Specialist = utlity asset, other, specialist. 
+#join tdatasets to get what I need. Remove nulls from data set.
 Rates <- wdc_rates %>% 
   filter(!is.na(assessment_number)) %>%
   left_join(
@@ -111,20 +109,36 @@ Rates <- wdc_rates %>%
     rate_yr == '26_27' ~ 2026,
     TRUE ~ NA
   )) %>%
+  mutate(Category = factor(Category, 
+                           levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>% #for consistent color coding
   select(-suburb_new) 
+#===== Data wrangling finish =====
+
+#===== Colour palette setup =====
+whanganui_palette <- c( #from inspecting the page elements of the Whanganui website, then color dropper picking from the coat of arms
+  "#2757A2", 
+  "#AD1619", 
+  "#FEC30E", 
+  "#008242", 
+  "#DCC0E2", 
+  "#C7E9F3",
+  "#004925",
+  "#D4582A",
+  "#372502",
+  "#8B514E",
+  "#93735B", 
+  "#687928",
+  "#FEEAD7")
+
+# font is Inter sans-serif
+
+
+#===== additional config =====
+x_labels <- c('2022/23', '2023/24', '2024/25', '2025/26', '2026/27')
 
 ```
-
-
-
-
-```{r color palette notes}
-whanganui_palette <- c("#6190F7", "#DC0100", "#FEC30E", "#69A241", "#E2D0E6", "#D0F5FB", "#2ED8C3", "#9C7348", "#8E8972", "#687928" )
-```
-
 
 ```{r}
-Data %>% filter( property_no == 13) %>% select(where(~!all(is.na(.))))
 # sum of {CBD rates, UAGC, General Rates, Water Rates, Stormwater, Firefighting capacity, Roading, Wastewater, Earthquake, Kerbside, Forestry, Roading Resilience, Trade Waste} = total
 # AND sum of {CBD, CBDA, CBD, ESC, ESF, ESR, GC1, GCS, GFA10, GFA3, GFA4, GFA5, GR1, GRA1, GRA2, GRA5, GRS, KS, MAW, MAWD, MAWR, RDA, RDAS, RDB, RDBS, RDF, RRC, RRF, RRR, SD, SDO, SDOS, SMO, SMOH, SRWV1, SRWV2, UAGC, WC, WCM, WFC, WS, WSH, WSRE, WWS, FE, TWCOD, TWFlow, TWTSS, TWWWTP} = total. 
 # first set of sums have conditional rules that look along row 2 (where unit rates names are above the columns in set 2), checks which match the column headers in the first set, then sums the columns. It is a classification hierarchy grouping process. So, column BQ is for CBD rates, the sum looks for all columns in the group `CBD Rates` then sums only those. Of which there are three: CBD, CBDA and CBDB. Same deal for all the others. 
@@ -150,35 +164,98 @@ Here's the plan:
 Maybe also look at how rates varied year on year within categories.
 Rain cloud for ggdits.
 use line ribon for year on year variation
- 
+
+# Graph 0: rates over time vs RBNZ inflation
+```{r graph 0}
+#RBNZ data I just copied from their website. Didn't seem like worth all the effort to download the full dataset.Rate yaers frun from start july to end June (source: my ever increasing rates bill :( )
+#NZ financial year is from start march to end april, so I need to get the NZ rates year quarter inflation values to map the rates to inflation correctly
+
+RBNZ_inflation <- data.frame(
+  year = c(2022, 2023, 2024, 2025, 2026),
+  CPI = c(mean(4.9, 5.9, 6.9, 7.3), 
+      mean(6, 6.7, 7.2, 7.2), 
+      mean(3.3, 4, 4.7, 5.6), 
+      mean(2.2, 2.2, 2.5, 2.7), 
+      mean(4.1, 3.1, 3.1, 3))
+)
+#RBNZ pink #ed1166
+#RBNZ values:
+# 30-06-2026,4.1
+# 31-03-2026,3.1
+# 31-12-2025,3.1
+# 30-09-2025,3
+# 30-06-2025,2.7
+# 31-03-2025,2.5
+# 31-12-2024,2.2
+# 30-09-2024,2.2
+# 30-06-2024,3.3
+# 31-03-2024,4
+# 31-12-2023,4.7
+# 30-09-2023,5.6
+# 30-06-2023,6
+# 31-03-2023,6.7
+# 31-12-2022,7.2
+# 30-09-2022,7.2
+# 30-06-2022,7.3
+# 31-03-2022,6.9
+# 31-12-2021,5.9
+# 30-09-2021,4.9
+
+timeseries_data <- Rates %>% #filter(Category == 'Residential') %>%
+  arrange(property_no, year) %>%
+  group_by(property_no) %>%
+  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
+         pct_change = replace_na(pct_change, 0)) %>%
+  ungroup() %>%
+  select(property_no, year, `total rates`, pct_change, Category)
+
+timeseries_data %>%
+  group_by(Category, year) %>%
+  summarise(mean_pct_change = mean(pct_change), .groups = 'drop') %>%
+  ggplot(aes(y = mean_pct_change, x = year, col = Category)) +
+  geom_line() +
+  geom_point(size = 2) +
+  geom_line(data = RBNZ_inflation, aes(y = CPI, x = year), color = "#ed1166", linewidth = 1, linetype= 'dashed') +
+  geom_point(data = RBNZ_inflation, aes(y = CPI, x = year), color = "#ed1166", size = 2) +
+  scale_x_continuous(labels = x_labels) +
+  scale_color_manual(values = whanganui_palette) +
+  labs(title = '',
+       subtitle = '',
+       x = '',
+       y ='') +
+  theme_minimal() +
+  theme()
+
+  
+  
+```
+
+
 #Graph 1: rates by category
 
-```{r graph 1, fig.width=15, fig.height=5}
+```{r graph 1, fig.width=15, fig.height=7}
+#Column chart
 Column <- Rates %>%
   filter(rate_yr == '26_27') %>% #avoid double counting
   group_by(Category) %>%
   summarise(Count = n()) %>%
-  mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
+  # mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
   ggplot(aes(x=Count, y = Category, fill= Category)) +
   geom_col() +
   scale_fill_manual(values = whanganui_palette) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.1))) + #stop the clipping off of the x axis values
   labs(title = 'Rateable Units by Category',
        subtitle = '88.4% of ratable units are residential',
        y = '', 
        x = 'Ratable units') +
   theme_minimal() +
   theme(legend.position = 'none',
-        panel.grid.major.y = element_blank()) +
-  scale_x_continuous(expand = expansion(mult = c(0, 0.1))) #stop the clipping off of the x axis values
+        panel.grid.major.y = element_blank()) 
 
-# Rates %>%
-#   filter(rate_yr == '26_27') %>% #avoid double counting
-#   group_by(Category) %>%
-#   summarise(Count = n(), perc = Count/nrow(Rates %>% filter(rate_yr == '26_27'))*100) 
-
+#box chart
 Box <- Rates %>%
   filter(rate_yr == '26_27') %>% #avoid double counting
-  mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
+  # mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
   ggplot(aes(x=log(`total rates`), y = Category, col= Category)) +
   geom_point(position = position_jitterdodge(jitter.width = 1), alpha = 0.3, size = 1) +
   geom_boxplot(col = 'black', fill = NA, outlier.shape = NA, size = 0.7) +
@@ -199,18 +276,8 @@ Column | Box
 #Graph 2: Residential rates change  through time. % change
 
 ```{r graphn 2, fig.height=8, fig.width=10}
-x_labels <- c('2022/23', '2023/24', '2024/25', '2025/26', '2026/27')
-
-Graph_2_data <- Rates %>% #filter(Category == 'Residential') %>%
-  arrange(property_no, year) %>%
-  group_by(property_no) %>%
-  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
-         pct_change = replace_na(pct_change, 0)) %>%
-  ungroup() %>%
-  select(property_no, year, `total rates`, pct_change, Category)
-
 #redline shows median change
-Graph_2_data %>%
+timeseries_data %>%
   group_by(year, Category) %>%
   median_qi(pct_change, .width = c(0.25, 0.5, 0.75, 0.95)) %>%
   ggplot(aes(x = year, y = pct_change, ymin = .lower, ymax = .upper, color = Category)) +
@@ -221,7 +288,7 @@ Graph_2_data %>%
      subtitle = 'Rate % change varied the most in the 2023/24 year,\n when the 2022 QV revaluation was applied',
      y = 'Percentage change', 
      x = '') +
-  scale_fill_manual(values = c("#D7E1F7", '#AFC2EC', '#8DADF2','#6190F7'),
+  scale_fill_manual(values = c("#C7E9F3", "#92B8D8", "#5C88BD","#2757A2"),
                     name = 'Quantile') +
   scale_x_continuous(labels = x_labels) +
   theme_minimal() +
@@ -257,144 +324,77 @@ Rates %>% left_join(year_built, by = 'property_no') %>%
 
 
 
-# Graph 1 and 2 - time
-
-```{r graph 1 -spaghetti pct change}
-# rates over time, need to set a factor order for the rate_yr, OR map them to years. 
-#will now try group by property number then calculate the year on year percentage change, 
-
-graph_1_data <- wdc_rates %>%
-  arrange(property_no, rate_yr) %>%
-  group_by(property_no) %>%
-  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
-         pct_change = replace_na(pct_change, 0)) %>%
-  ungroup() %>%
-  select(property_no, rate_yr, `total rates`, pct_change) %>%
-  filter(property_no != 6318) #remove outlier
-
-graph_1_summary <- graph_1_data %>% 
-  group_by(rate_yr) %>%
-  summarise(median_pct = median(pct_change),
-            mean_pct = mean(pct_change),
-            .groups = 'drop')
-  
-#spaghetti plot
-#property 6318 has a 13464.58% rates change. That is odd. I will drop it. A commerical property that was increasedd from42 to 5710 in 24_25
-graph_1 <- graph_1_data %>% 
-ggplot(aes(x = rate_yr, y = pct_change, group = property_no)) +
-  geom_line(col = "#6190F7", alpha = 0.15, linewidth = 0.2) +
-  geom_line(data = graph_1_summary, aes(x = rate_yr, y = median_pct, group = 1), col = "#DC0100", linewidth = 1) +
-  theme(legend.position = 'none')
-
-# I think this is pretty good for a start, maybe trim out more outliers so audience can see the pct change around the median. 
-```
-
-```{r}
-graph_1
-```
-
-
-
-
-
-
-```{r graph 2 - fan chart pct change}
-graph_2_data <- graph_1_data %>%
-  # filter(pct_change < 100) %>%
-  group_by(rate_yr) %>%
-  summarise(
-    median = median(pct_change),
-    mean = mean(pct_change),
-    lower25 = quantile(pct_change, 0.375),
-    upper25 = quantile(pct_change, 0.625),
-    lower50 = quantile(pct_change, 0.25),
-    upper50 = quantile(pct_change, 0.75),
-    lower90 = quantile(pct_change, 0.05),
-    upper90 = quantile(pct_change, 0.95),
-    lower100 = quantile(pct_change, 0),
-    upper100 = quantile(pct_change, 1),
-  )
-
-graph_2 <- ggplot(data = graph_2_data, aes(x = rate_yr, group = 1)) +
-  # geom_ribbon(aes(ymin = lower100, ymax = upper100), fill = "#6190F7", alpha = 0.2) +
-  geom_ribbon(aes(ymin = lower90, ymax = upper90, fill = "90%"), alpha = 0.4) +
-  geom_ribbon(aes(ymin = lower50, ymax = upper50, fill = "50%"), alpha = 0.6) +
-  geom_ribbon(aes(ymin = lower25, ymax = upper25, fill = "25%"), alpha = 0.9) +
-  geom_line(aes(y=median, color = "Median change"), linewidth = 1) +
-  theme_minimal() +
-  scale_fill_manual(
-  name = "Qunatiles",
-  values = c("90%" = "#6190F7", 
-             "50%" = "#6190F7", 
-             "25%" = "#6190F7")
-  ) + 
-  scale_color_manual(
-    name = "Estimates",
-    values = c("Median change" = "#DC0100")
-  ) +
-  theme(legend.position = "top",
-      plot.title = element_text(size = 17),
-      plot.subtitle = element_text(size = 13),
-      axis.title.y = element_text(size = 13),
-      axis.title.x = element_text(size = 13))
-
-graph_2
-
-#may want ot note the property revaluation that occured in 2022 and impacted 23/24
-  
-```
-
 
 # Graph 3 - Map
 
-```{r graph 3 map, fig.width=10, fig.height= 10}
-ta_nz <- nz %>% 
-  group_by(territorial_authority, regional_council) %>%
-  summarise(geometry = st_union(GEOMETRY), .groups = 'drop')
-
-whanganui <- nz %>% filter(territorial_authority == "Whanganui District")
-bbox <- st_bbox(whanganui)
-
-# w_bbox <- list(x = c(1751098, 1815702), x=c(5565628, 5655993))
-
-w_bbox <- list(x = c(1767500, 1779000), y=c(5574000, 5585000))
-
-```
-
-```{r}
-#I need to map wdc_rates to Sa3_name, then calculate the fill of the map geom as the average rate value... how can I sohw this through time... maybe a facet wrap? 
-# group by suburb, then summarise the rates by suburb, then left join rates to the map data, then plot. That's the process. 
-sort(unique(wdc_rates$suburb))
-paste("break:")
-sort(unique(whanganui$sa3_name))
-paste("break:")
-sort(unique(graph_3_data$suburb))
-```
-
-```{r, fig.width=10, fig.height=10}
-
-#move this to earlier step for data wrangling after reading in. Except the summarise bit. Just the suburb remapping
-graph_3_data <- wdc_rates %>% 
+```{r graph 4 map, fig.width=15, fig.height=8}
+#===== map code =====
+graph_3_data <- Rates %>% 
+  filter(year == 2026) %>%
   group_by(suburb) %>%
   summarise(median_rates = median(`total rates`, .groups = 'drop'))
 
-whanganui %>%
+suburb_map <- whanganui %>%
   left_join(graph_3_data, by = c('sa3_name' = 'suburb')) %>%
   ggplot() +
-  geom_sf(mapping=aes(fill = median_rates), col = 'white', alpha = 0.5) +
+  geom_sf(mapping=aes(fill = median_rates), col = 'white', linewidth = 1, alpha = 0.5) +
   coord_sf(xlim = w_bbox$x, ylim = w_bbox$y) + #need to change the rural district label to be visible
   geom_sf_label(mapping=aes(label=sa3_name), size=3)+
   annotate("label", x = 1777000, y = 5584000,
            label = "Whanganui District Rural", size = 3, fill = 'white') + #play with this to get the piosition right
-  scale_fill_gradientn(colors = c( "#69A241", "#6190F7", "#FEC30E", '#DC0100'),
+  scale_fill_gradientn(colors = c("#008242", "#FEC30E", "#AD1619"),
                        limits = c(min(graph_3_data$median_rates), max(graph_3_data$median_rates))) +
+  labs(title = 'Rates by suburb in year 2026/27',
+       subtitle = '',
+       x = '',
+       y = '') +
+  theme_minimal() +
+  theme(legend.position = 'none',
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+#===== heatmap code =====
+heatmap_data <- Rates %>% 
+  filter(Category == 'Residential') %>%
+  select(`total rates`, suburb, year) %>%
+  group_by(year, suburb) %>%
+  summarise(median_rates = median(`total rates`),
+             .groups = 'drop')
+
+suburb_heatmap <- heatmap_data %>%
+  ggplot(aes(y = suburb, x = year, fill = median_rates)) +
+  geom_tile() +
+  geom_text(aes(label = round(median_rates,0)), size = 3.5, na.rm = TRUE) +
+  scale_fill_gradientn(colors = c("#008242", "#FEC30E", "#AD1619"),
+                     limits = c(min(heatmap_data$median_rates), max(heatmap_data$median_rates))) +
+  scale_x_continuous(breaks = c(2022, 2023, 2024, 2025, 2026),, labels = x_labels) +
+  labs(title = 'Median Rates by Suburb from 2022/23 to 2026/27',
+       subtitle = '',
+       x = '',
+       y = '') +
   theme_minimal()
 
-  # guides(fill = median_rates)
-# w_bbox <- list(x = c(1767500, 1779000), y=c(5574000, 5585000))
-
-
+#patchwork the plot together.
+(suburb_map | suburb_heatmap) +
+  plot_annotation(title = 'Median residential rates can vary more than $1,000 by suburb',
+                  subtitle = 'Otamatea has the highest residential rates in Whanganui')
 ```
+
+```{r}
+Rates %>% 
+  filter(Category == 'Residential') %>%
+  select(`total rates`, suburb, year) %>%
+  group_by(year, suburb) %>%
+  summarise(count = n(), 
+             .groups = 'drop')
+```
+
+
+
 
 ```{r}
 wdc_rates %>% filter(`total rates` > 25000) %>% filter(`qv category` == 'Residential') %>%
@@ -474,7 +474,95 @@ wdc_rates %>% filter(!is.na(`qv category`) ) %>%
 #   theme_lawa() 
 ```
 
+=============================================================================
 
+# Graph 1 and 2 - time
+
+```{r graph 1 -spaghetti pct change}
+# rates over time, need to set a factor order for the rate_yr, OR map them to years. 
+#will now try group by property number then calculate the year on year percentage change, 
+
+graph_1_data <- wdc_rates %>%
+  arrange(property_no, rate_yr) %>%
+  group_by(property_no) %>%
+  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
+         pct_change = replace_na(pct_change, 0)) %>%
+  ungroup() %>%
+  select(property_no, rate_yr, `total rates`, pct_change) %>%
+  filter(property_no != 6318) #remove outlier
+
+graph_1_summary <- graph_1_data %>% 
+  group_by(rate_yr) %>%
+  summarise(median_pct = median(pct_change),
+            mean_pct = mean(pct_change),
+            .groups = 'drop')
+  
+#spaghetti plot
+#property 6318 has a 13464.58% rates change. That is odd. I will drop it. A commerical property that was increasedd from42 to 5710 in 24_25
+graph_1 <- graph_1_data %>% 
+ggplot(aes(x = rate_yr, y = pct_change, group = property_no)) +
+  geom_line(col = "#6190F7", alpha = 0.15, linewidth = 0.2) +
+  geom_line(data = graph_1_summary, aes(x = rate_yr, y = median_pct, group = 1), col = "#DC0100", linewidth = 1) +
+  theme(legend.position = 'none')
+
+# I think this is pretty good for a start, maybe trim out more outliers so audience can see the pct change around the median. 
+```
+
+```{r}
+graph_1
+```
+
+
+
+
+
+
+```{r graph 2 - fan chart pct change}
+graph_2_data <- graph_1_data %>%
+  # filter(pct_change < 100) %>%
+  group_by(rate_yr) %>%
+  summarise(
+    median = median(pct_change),
+    mean = mean(pct_change),
+    lower25 = quantile(pct_change, 0.375),
+    upper25 = quantile(pct_change, 0.625),
+    lower50 = quantile(pct_change, 0.25),
+    upper50 = quantile(pct_change, 0.75),
+    lower90 = quantile(pct_change, 0.05),
+    upper90 = quantile(pct_change, 0.95),
+    lower100 = quantile(pct_change, 0),
+    upper100 = quantile(pct_change, 1),
+  )
+
+graph_2 <- ggplot(data = graph_2_data, aes(x = rate_yr, group = 1)) +
+  # geom_ribbon(aes(ymin = lower100, ymax = upper100), fill = "#6190F7", alpha = 0.2) +
+  geom_ribbon(aes(ymin = lower90, ymax = upper90, fill = "90%"), alpha = 0.4) +
+  geom_ribbon(aes(ymin = lower50, ymax = upper50, fill = "50%"), alpha = 0.6) +
+  geom_ribbon(aes(ymin = lower25, ymax = upper25, fill = "25%"), alpha = 0.9) +
+  geom_line(aes(y=median, color = "Median change"), linewidth = 1) +
+  scale_fill_manual(
+  name = "Qunatiles",
+  values = c("90%" = "#6190F7", 
+             "50%" = "#6190F7", 
+             "25%" = "#6190F7")
+  ) + 
+  scale_color_manual(
+    name = "Estimates",
+    values = c("Median change" = "#DC0100")
+  ) +
+  theme(legend.position = "top",
+      plot.title = element_text(size = 17),
+      plot.subtitle = element_text(size = 13),
+      axis.title.y = element_text(size = 13),
+      axis.title.x = element_text(size = 13)) +
+  theme_minimal()
+
+
+graph_2
+
+#may want ot note the property revaluation that occured in 2022 and impacted 23/24
+  
+```
 
 # Graph 5 - rate contributor
 ```{r rates breakdown, fig.width=10, fig.height=10}
