@@ -5,7 +5,7 @@ date: "2026-08-09"
 output: html_document
 ---
 
-```{r attach libs,warning = FALSE, message = FALSE}
+```{r attach libs, echo = FALSE, warning = FALSE, message = FALSE}
 library(tidygraph)
 library(tidyverse)
 library(readxl)
@@ -25,6 +25,13 @@ Data <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx"
 # Unit_Rates <- read_excel("Draft Rates by property 26.27 - statistical purposes 1.xlsx", sheet = "Unit Rates")
 wdc_rates <- read_csv("wdc_rates_qv.csv") %>% 
   mutate(rate_yr = factor(rate_yr, levels = c("22_23", "23_24", "24_25", "25_26", "26_27"), ordered = TRUE))
+
+#CPI data for indexing
+CPI <- read.csv("CPI.csv") %>%
+  mutate(Date = as.Date(Date, format = "%d-%m-%Y"),
+         year = year(Date)) %>%
+  group_by(year) %>%
+  summarise(CPI = mean(CPI..Annual...change.))
 
 #===== map setup begin ======
 nz <- read_sf("https://www.massey.ac.nz/~jcmarsha/data/nz_map/sa3_data.sqlite")
@@ -171,66 +178,51 @@ use line ribon for year on year variation
 #RBNZ data I just copied from their website. Didn't seem like worth all the effort to download the full dataset.Rate yaers frun from start july to end June (source: my ever increasing rates bill :( )
 #NZ financial year is from start march to end april, so I need to get the NZ rates year quarter inflation values to map the rates to inflation correctly
 
-RBNZ_inflation <- data.frame(
-  year = c(2022, 2023, 2024, 2025, 2026),
-  CPI = c(mean(4.9, 5.9, 6.9, 7.3), 
-      mean(6, 6.7, 7.2, 7.2), 
-      mean(3.3, 4, 4.7, 5.6), 
-      mean(2.2, 2.2, 2.5, 2.7), 
-      mean(4.1, 3.1, 3.1, 3))
-)
 #RBNZ pink #ed1166
-#RBNZ values:
-# 30-06-2026,4.1
-# 31-03-2026,3.1
-# 31-12-2025,3.1
-# 30-09-2025,3
-# 30-06-2025,2.7
-# 31-03-2025,2.5
-# 31-12-2024,2.2
-# 30-09-2024,2.2
-# 30-06-2024,3.3
-# 31-03-2024,4
-# 31-12-2023,4.7
-# 30-09-2023,5.6
-# 30-06-2023,6
-# 31-03-2023,6.7
-# 31-12-2022,7.2
-# 30-09-2022,7.2
-# 30-06-2022,7.3
-# 31-03-2022,6.9
-# 31-12-2021,5.9
-# 30-09-2021,4.9
+RBNZ_inflation <- CPI %>% filter(year >= 2022)
+CPI_2022 <- RBNZ_inflation %>% filter(year == 2022) %>% pull(CPI)
 
+#indexing rates to inflations, then getting % change ot compare next to CPI
 timeseries_data <- Rates %>% #filter(Category == 'Residential') %>%
   arrange(property_no, year) %>%
+  left_join(RBNZ_inflation, by = "year") %>%
+  mutate(indexed_rates = (`total rates` / CPI) * CPI_2022) %>%
   group_by(property_no) %>%
-  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
+  mutate(pct_change = (indexed_rates - lag(indexed_rates)) / lag(indexed_rates) * 100,
          pct_change = replace_na(pct_change, 0)) %>%
   ungroup() %>%
-  select(property_no, year, `total rates`, pct_change, Category)
+  select(property_no, year, `total rates`, indexed_rates, pct_change, Category)
 
-timeseries_data %>%
+G0_data <- timeseries_data %>%
   group_by(Category, year) %>%
-  summarise(mean_pct_change = mean(pct_change), .groups = 'drop') %>%
+  summarise(mean_pct_change = mean(pct_change), .groups = 'drop') 
+
+G0_data %>%
   ggplot(aes(y = mean_pct_change, x = year, col = Category)) +
   geom_line() +
   geom_point(size = 2,show.legend = FALSE) +
   geom_line(data = RBNZ_inflation, aes(y = CPI, x = year, color = "RBNZ Inflation Rate"), linewidth = 1, linetype= 'dashed') +
   geom_point(data = RBNZ_inflation, aes(y = CPI, x = year, color = "RBNZ Inflation Rate"), size = 2, show.legend = FALSE) +
+  #Scale arguments
   scale_x_continuous(labels = x_labels) +
-  scale_y_continuous(breaks = seq(0,20, by =2)) +
+  scale_y_continuous(limits = c(round(min(G0_data$mean_pct_change),0), 
+                                  round(max(G0_data$mean_pct_change),0)),
+                      breaks = scales::breaks_width(10)) +
   scale_color_manual(values = c(
     setNames(whanganui_palette[1:4], c('Specialist', 'Farming', 'Commercial', 'Residential')),
-    "RBNZ Inflation Rate" = "#ed1166")) +
-  labs(title = 'Whanganui year on year rate percentage change against RBNZ CPI',
-       subtitle = 'Rates changes are usually higher than CPI, except for farming rates in 2025/26',
+    "RBNZ Inflation Rate" = "#ed1166"),
+    name= "Legend") +
+  #labels
+  labs(title = 'Whanganui year on year mean rate percentage change against RBNZ CPI',
+       subtitle = 'Rates changes are usually higher than CPI, except for 2026/27',
        x = '',
        y ='%',
        color = 'Legend',
-       caption = 'RBNZ rates have been averaged across the rating year, not the financial year, to align with rate changes.' ) +
+       caption = 'Rate values have been index linked to 2022 inflation in order to compare like.' ) +
+  #theme
   theme_minimal() +
-  theme(legend.position = 'top')
+  theme(legend.position = 'top',
+        panel.grid.minor.x = element_blank())
 
 ```
 
