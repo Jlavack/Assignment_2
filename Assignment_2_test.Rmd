@@ -450,7 +450,8 @@ Rates %>%
   summarise(total_rates_paid = sum(`total rates`),
             units = n(),
             .groups = "drop") %>%
-  mutate(prop_rates = total_rates_paid / total_rates) %>%
+  mutate(prop_rates = total_rates_paid / sum(total_rates_paid),
+         average_rates = total_rates_paid / units) %>%
   arrange(desc(year), desc(prop_rates))
 
 #per house, the proportional rates are hghest in omatea
@@ -460,7 +461,9 @@ Rates %>%
   mutate(prop = 100 * `total rates` / sum(`total rates`)) %>%
   ungroup() %>%
   group_by(year, suburb) %>%
-  summarise(mean_prop = mean(prop), .groups = "drop") %>%
+  summarise(mean_prop = mean(prop), 
+            sum_prop = sum(prop),
+            .groups = "drop") %>%
   arrange(year, desc(mean_prop))
 
 
