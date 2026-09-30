@@ -230,7 +230,7 @@ G0_data %>%
 #Graph 1: rates by category
 
 ```{r graph 1, fig.width=15, fig.height=7}
-#Column chart
+#===== Column chart =====#
 Column <- Rates %>%
   filter(rate_yr == '26_27') %>% #avoid double counting
   group_by(Category) %>%
@@ -238,41 +238,54 @@ Column <- Rates %>%
   # mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
   ggplot(aes(x=Count, y = Category, fill= Category)) +
   geom_col() +
+  #scales
   scale_fill_manual(values = whanganui_palette) +
   scale_x_continuous(expand = expansion(mult = c(0, 0.1))) + #stop the clipping off of the x axis values
-  labs(title = 'Rateable Units by Category',
+  #labels
+  labs(title = 'Rateable units by category',
        subtitle = '88.4% of ratable units are residential',
        y = '', 
        x = 'Ratable units') +
+  #theme
   theme_minimal() +
-  theme(legend.position = 'none',
+  theme(plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        legend.position = 'none',
         panel.grid.major.y = element_blank()) 
 
-#box chart
+#===== box chart =====#
 Box <- Rates %>%
   filter(rate_yr == '26_27') %>% #avoid double counting
   # mutate(Category = factor(Category, levels = c('Specialist', 'Farming', 'Commercial', 'Residential'))) %>%
   ggplot(aes(x=log(`total rates`), y = Category, col= Category)) +
   geom_point(position = position_jitterdodge(jitter.width = 1), alpha = 0.3, size = 1) +
   geom_boxplot(col = 'black', fill = NA, outlier.shape = NA, size = 0.7) +
+  #scales
   scale_color_manual(values = whanganui_palette) +
-  labs(title = 'Rates distribution by Category',
-       subtitle = 'Residential rates varied the least in year 2026 to 2027',
+  #labels
+  labs(title = 'Rates distribution by category',
+       subtitle = 'Residential rates varied the least compared to other categories',
        y = '', 
        x = 'Log of total rates') +
+  #theme
   theme_minimal() +
-  theme(legend.position = 'none',
+  theme(plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 12),
+        legend.position = 'none',
         panel.grid.major.y = element_blank(),
         axis.text.y = element_blank())
 
-#patchwotj the two together
-Column | Box
+#===== patchwork the two together =====#
+(Column | Box) +
+  plot_annotation(title = "Rates by Category in year rating 2026/27",
+                  theme = theme(plot.title = element_text(size = 30)))
 ```
 
 #Graph 2: Residential rates change  through time. % change
 
 ```{r graphn 2, fig.height=8, fig.width=10}
-#===== ribbon chart =====
+#===== ribbon chart =====#
 #redline shows median change
 ribbon_chart <- timeseries_data %>%
   group_by(year, Category) %>%
@@ -281,19 +294,22 @@ ribbon_chart <- timeseries_data %>%
   geom_lineribbon(color = "#DC0100", alpha = 0.5, linewidth = 0.7) + #from the vignette https://mjskay.github.io/ggdist/articles/lineribbon.html
   geom_vline(aes(xintercept = 2023), linetype ='dashed') + 
   facet_wrap(~ Category, scales = "free_y") +
+  #scales
   scale_fill_manual(values = c("#C7E9F3", "#92B8D8", "#5C88BD","#2757A2"),
                     name = 'Quantile') +
   scale_x_continuous(labels = x_labels) +
-  labs(title = 'Residential Rates Change Year on Year',
-     subtitle = 'Rate % change varied the most in the 2023/24 year, when the 2022 QV revaluation was applied/n but residential rates have increased the most noticably in 2024/25',
+  #labels
+  labs(title = 'Inflation indexed residential rates change year on year',
+     subtitle = 'Rate % change varied the most in the 2023/24 year, when the 2022 QV revaluation was applied.\nResidential rates have varied the least.',
      y = 'Percentage change', 
      x = '') +
+  #Theme
   theme_minimal() +
   theme(legend.position = 'top',
         panel.grid.minor.x = element_blank(),
         strip.text = element_text(face = "bold"))
 
-#===== Cumulative percent change =====
+#===== Cumulative percent change =====#
 cumulative_data <- timeseries_data %>%
   group_by(year, Category) %>%
   summarise(pct_change = mean(pct_change), .groups = 'drop') %>%
@@ -308,17 +324,22 @@ cumulative_chart <- cumulative_data %>%
   geom_line(aes(y = cum_chg), linewidth = 0.8) +
   geom_line(data = avg_cum_perc, aes(x = year, y = avg, col = 'Average'),
             linewidth = 1, linetype = 'dashed') +
+  #scales
   scale_x_continuous(labels = x_labels) +
-  scale_y_continuous(breaks = seq(0,40, by = 5)) + 
+  scale_y_continuous(limits = c(round(min(cumulative_data$cum_chg),0), 
+                                round(max(cumulative_data$cum_chg),0)),
+                    breaks = scales::breaks_width(10)) +
   scale_color_manual(values = c(
       setNames(whanganui_palette[1:4], c('Specialist', 'Farming', 'Commercial', 'Residential')),
       "Average" = "black")) +
+  #labels
   labs(
     title = 'Cumulatively, residential rates have changed the least',
-    subtitle = "Consistently below the average",
+    subtitle = "Consistently just below the average",
     x = '',
     y = 'Percent'
   ) +
+  #theme
   theme_minimal() +
   theme(legend.position = 'top',
       strip.text = element_text(face = "bold"))
@@ -330,7 +351,6 @@ cumulative_chart <- cumulative_data %>%
 ```
 
 Residential rates change the most in terms of median % change. 
-
 
 #Graph 3: SUIP Residential
 do new builds have higher rates? No, it doens't appear so. 
@@ -417,6 +437,40 @@ suburb_heatmap <- heatmap_data %>%
   plot_annotation(title = 'Median residential rates can vary more than $1,000 by suburb',
                   subtitle = 'Otamatea has the highest residential rates in Whanganui, despite having the fewest rateable units')
 ```
+
+#Who pays the most?
+
+```{r}
+# Total of rates paid is most in gonville
+total_rates <- sum(Rates$`total rates`)
+
+Rates %>% 
+  filter(Category == "Residential") %>%
+  group_by(year, suburb) %>%
+  summarise(total_rates_paid = sum(`total rates`),
+            units = n(),
+            .groups = "drop") %>%
+  mutate(prop_rates = total_rates_paid / total_rates) %>%
+  arrange(desc(year), desc(prop_rates))
+
+#per house, the proportional rates are hghest in omatea
+Rates %>% 
+  filter(Category == "Residential") %>%
+  group_by(year) %>%
+  mutate(prop = 100 * `total rates` / sum(`total rates`)) %>%
+  ungroup() %>%
+  group_by(year, suburb) %>%
+  summarise(mean_prop = mean(prop), .groups = "drop") %>%
+  arrange(year, desc(mean_prop))
+
+
+
+timeseries_data %>% 
+  left_join(Rates %>% select(property_no, suburb), by = "property_no") %>%
+  group_by(year, suburb) %>%
+  summarise(total_rates_paid = sum(`total rates`))
+```
+
 
 
 #Graph 4 - rain clouds by SUIP
@@ -525,149 +579,4 @@ Rates %>%
 ```
 
 =============================================================================
-
-# Graph 1 and 2 - time
-
-```{r graph 1 -spaghetti pct change}
-# rates over time, need to set a factor order for the rate_yr, OR map them to years. 
-#will now try group by property number then calculate the year on year percentage change, 
-
-graph_1_data <- wdc_rates %>%
-  arrange(property_no, rate_yr) %>%
-  group_by(property_no) %>%
-  mutate(pct_change = (`total rates` - lag(`total rates`)) / lag(`total rates`) * 100,
-         pct_change = replace_na(pct_change, 0)) %>%
-  ungroup() %>%
-  select(property_no, rate_yr, `total rates`, pct_change) %>%
-  filter(property_no != 6318) #remove outlier
-
-graph_1_summary <- graph_1_data %>% 
-  group_by(rate_yr) %>%
-  summarise(median_pct = median(pct_change),
-            mean_pct = mean(pct_change),
-            .groups = 'drop')
-  
-#spaghetti plot
-#property 6318 has a 13464.58% rates change. That is odd. I will drop it. A commerical property that was increasedd from42 to 5710 in 24_25
-graph_1 <- graph_1_data %>% 
-ggplot(aes(x = rate_yr, y = pct_change, group = property_no)) +
-  geom_line(col = "#6190F7", alpha = 0.15, linewidth = 0.2) +
-  geom_line(data = graph_1_summary, aes(x = rate_yr, y = median_pct, group = 1), col = "#DC0100", linewidth = 1) +
-  theme(legend.position = 'none')
-
-# I think this is pretty good for a start, maybe trim out more outliers so audience can see the pct change around the median. 
-```
-
-```{r}
-graph_1
-```
-
-
-
-
-
-
-```{r graph 2 - fan chart pct change}
-graph_2_data <- graph_1_data %>%
-  # filter(pct_change < 100) %>%
-  group_by(rate_yr) %>%
-  summarise(
-    median = median(pct_change),
-    mean = mean(pct_change),
-    lower25 = quantile(pct_change, 0.375),
-    upper25 = quantile(pct_change, 0.625),
-    lower50 = quantile(pct_change, 0.25),
-    upper50 = quantile(pct_change, 0.75),
-    lower90 = quantile(pct_change, 0.05),
-    upper90 = quantile(pct_change, 0.95),
-    lower100 = quantile(pct_change, 0),
-    upper100 = quantile(pct_change, 1),
-  )
-
-graph_2 <- ggplot(data = graph_2_data, aes(x = rate_yr, group = 1)) +
-  # geom_ribbon(aes(ymin = lower100, ymax = upper100), fill = "#6190F7", alpha = 0.2) +
-  geom_ribbon(aes(ymin = lower90, ymax = upper90, fill = "90%"), alpha = 0.4) +
-  geom_ribbon(aes(ymin = lower50, ymax = upper50, fill = "50%"), alpha = 0.6) +
-  geom_ribbon(aes(ymin = lower25, ymax = upper25, fill = "25%"), alpha = 0.9) +
-  geom_line(aes(y=median, color = "Median change"), linewidth = 1) +
-  scale_fill_manual(
-  name = "Qunatiles",
-  values = c("90%" = "#6190F7", 
-             "50%" = "#6190F7", 
-             "25%" = "#6190F7")
-  ) + 
-  scale_color_manual(
-    name = "Estimates",
-    values = c("Median change" = "#DC0100")
-  ) +
-  theme(legend.position = "top",
-      plot.title = element_text(size = 17),
-      plot.subtitle = element_text(size = 13),
-      axis.title.y = element_text(size = 13),
-      axis.title.x = element_text(size = 13)) +
-  theme_minimal()
-
-
-graph_2
-
-#may want ot note the property revaluation that occured in 2022 and impacted 23/24
-  
-```
-
-# Graph 5 - rate contributor
-```{r rates breakdown, fig.width=10, fig.height=10}
-
-#so waffle chart didn't work out. I will do a tree map instead.
-library(treemap)
-
-
-#the rates variance % is wrong in this data set... someone cocked up.
-# this needs to go in an inintail data cleaning step 
-Data %>% select(property_no, LV:Difference ) %>% 
-  filter(`2025/26 Rates` > 0) %>%
-  mutate(`Rates Variance %` = (`Rates Variance $` / `2025/26 Rates` * 100 )) %>%
-  arrange(desc(`Rates Variance %`)) %>% 
-  filter(!is.na(`Rates Variance %`)) %>% summarise(median(`Rates Variance %`))
-
-#So this looks pretty good, I will need ot map the righ suburbs to it. Could try a cock comb chart?
-graph_4_data <- Data %>% 
-  select(property_no, `Res/ Comm/ Faarm`, `Land Use`, Suburb, `CBD rates`:total ) %>%
-  pivot_longer(
-    cols = `CBD rates`:total,
-    names_to =  'rate_type',
-    values_to = 'value'
-  ) %>%
-  filter(rate_type != 'total') %>%
-  # filter(Suburb == 'Springvale') %>%
-  group_by(Suburb,rate_type) %>%
-  summarise(value = sum(value), .groups = 'drop') 
-
-  treemap(
-    graph_4_data,
-    index = c("Suburb", "rate_type"),
-    vSize = "value",
-    vColor = 'rate_type',
-    type = "index",
-    palette = "Set2",
-    title = 'Rates by Suburb'
-  )
-```
-
-```{r}
-#style over substance
-df <- Data %>%
-  select(Suburb, `CBD rates`:`Trade Waste`) %>%
-  pivot_longer(cols = `CBD rates`:`Trade Waste`,
-               names_to = "rate_type",
-               values_to = "value") %>%
-  filter(!is.na(value)) %>%
-  summarise(value = sum(value), .by = c(Suburb, rate_type))
-
-ggplot(df, aes(x = Suburb, y = sqrt(value), fill = rate_type)) +
-  geom_col(width = 1, colour = "black") +
-  # facet_wrap(~ Suburb, ncol = 3) +
-  coord_polar() +
-  theme_void() +
-  labs(x = NULL, y = NULL)
-```
 
